@@ -295,7 +295,7 @@ int main(int argc, char **argv)
 		{
 			try
 			{
-				auto sel = sycl::cpu_selector();
+				auto sel = sycl::host_selector();
 				sycl::queue q(sel, dpc_common::exception_handler);
 
 				Stopwatch sw;

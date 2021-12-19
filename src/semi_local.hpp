@@ -149,14 +149,17 @@ long long StickyBraidParallelBlockwise(sycl::queue &q, InputSequencePair p)
 		int original_n = n;
 
 
-		const int block_m = 2;
-		const int block_n = 2;
+		const int block_m = 32;
+		const int block_n = 32;
 		m = (m + block_m - 1) / block_m;
 		n = (n + block_n - 1) / block_n;
 
 
 		int diag_count = m + n - 1;
-		int max_diag_length = m; // say it's vertical!
+		// int max_diag_length = m; // say it's vertical!
+
+		int block_diag_count = block_m + block_n - 1;
+		// int block_diag_length = block_m;
 
 		for (int i_diag = 0; i_diag < diag_count; ++i_diag)
 		{
@@ -175,16 +178,17 @@ long long StickyBraidParallelBlockwise(sycl::queue &q, InputSequencePair p)
 					auto acc_a = buf_a.get_access<sycl::access::mode::read, sycl::access::target::global_buffer>(h);
 					auto acc_b = buf_b.get_access<sycl::access::mode::read, sycl::access::target::global_buffer>(h);
 
-#if 1
+#if 1 // DEBUG: no inner loop
 					h.parallel_for(sycl::range<1>(diag_len),
 						[=](auto iter_steps)
 						{
-#if 1
+#if 1 // DEBUG: no work inside inner loop
 							int steps = iter_steps;
 							// block coordinates
 							int i_block = i_first - steps;
 							int j_block = j_first + steps;
-
+#if 0 // DEBUG: row-major iteration
+							// row-major iteration
 							for (int i_rel = 0; i_rel < block_m; ++i_rel)
 							{
 								for (int j_rel = 0; j_rel < block_n; j_rel++)
@@ -201,14 +205,55 @@ long long StickyBraidParallelBlockwise(sycl::queue &q, InputSequencePair p)
 									int h_strand = acc_h_strands[h_index];
 									int v_strand = acc_v_strands[v_index];
 									bool need_swap = acc_a[i] == acc_b[j] || h_strand > v_strand;
+#if 1 // DEBUG: remove if
+									{
+										// maybe a little faster?
+										int r = (int)need_swap;
+										acc_h_strands[h_index] = (h_strand & (r - 1)) | ((-r) & v_strand);
+										acc_v_strands[v_index] = (v_strand & (r - 1)) | ((-r) & h_strand);
+									}
+#else
 									if (need_swap)
 									{
 										// swap
 										acc_h_strands[h_index] = v_strand;
 										acc_v_strands[v_index] = h_strand;
 									}
+#endif
 								}
 							}
+#else // DEBUG: anti-diagonal iteration
+#define Min(X, Y) ((X) < (Y) ? (X) : (Y))
+							for (int i_block_diag = 0; i_block_diag < block_diag_count; ++i_block_diag)
+							{
+								int i_rel_first = i_block_diag < block_m ? i_block_diag : block_m - 1;
+								int j_rel_first = i_block_diag < block_m ? 0 : i_block_diag - block_m + 1;
+								int block_diag_len = Min(i_rel_first + 1, block_n - j_rel_first);
+								for (int block_steps = 0; block_steps < block_diag_len; ++block_steps)
+								{
+									int i_rel = i_rel_first - block_steps;
+									int j_rel = j_rel_first + block_steps;
+									int i = i_block * block_m + i_rel;
+									int j = j_block * block_n + j_rel;
+									if (i >= original_m || j >= original_n)
+									{
+										continue;
+									}
+									int h_index = original_m - 1 - i;
+									int v_index = j;
+									int h_strand = acc_h_strands[h_index];
+									int v_strand = acc_v_strands[v_index];
+									bool need_swap = acc_a[i] == acc_b[j] || h_strand > v_strand;
+
+									{
+										// maybe a little faster?
+										int r = (int)need_swap;
+										acc_h_strands[h_index] = (h_strand & (r - 1)) | ((-r) & v_strand);
+										acc_v_strands[v_index] = (v_strand & (r - 1)) | ((-r) & h_strand);
+									}
+								}
+							}
+#endif
 #endif
 						}
 					);
@@ -353,12 +398,23 @@ long long StickyBraidAntidiagonal(const InputSequencePair &p)
 				int v_index = j;
 				int h_strand = h_strands[h_index];
 				int v_strand = v_strands[v_index];
-				if (a[i] == b[j] || h_strand > v_strand)
+
+#if 1
+				bool need_swap = a[i] == b[j] || h_strand > v_strand;
+				{
+					// maybe a little faster?
+					int r = (int)need_swap;
+					h_strands[h_index] = (h_strand & (r - 1)) | ((-r) & v_strand);
+					v_strands[v_index] = (v_strand & (r - 1)) | ((-r) & h_strand);
+				}
+#else
+				if (need_swap)
 				{
 					// swap
 					h_strands[h_index] = v_strand;
 					v_strands[v_index] = h_strand;
 				}
+#endif
 			}
 		}
 	}
