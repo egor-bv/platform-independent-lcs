@@ -255,7 +255,7 @@ int main(int argc, char **argv)
 {
 	// NOTE(Egor): for test purposes, hardcoded filenames here
 	const char *file_a = "1.fna";
-	const char *file_b = "1.fna";
+	const char *file_b = "2.fna";
 
 	// loading code
 	int dataset_a_size = 0;
@@ -299,7 +299,7 @@ int main(int argc, char **argv)
 				sycl::queue q(sel, dpc_common::exception_handler);
 
 				Stopwatch sw;
-				long long hsh = StickyBraidParallel(q, input);
+				long long hsh = StickyBraidParallelBlockwise(q, input);
 
 				std::cout << "\n===============================================================\n";
 				std::cout << "parallel algo finished" << "\n";
