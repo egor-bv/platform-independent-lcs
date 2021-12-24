@@ -39,6 +39,31 @@ public:
 	{
 		return row_to_col[row];
 	}
+
+	static PermutationMatrix FromStrands(int *h_strands, int m, int *v_strands, int n)
+	{
+		PermutationMatrix p(m + n);
+		for (int l = 0; l < m; l++) p.set_point(h_strands[l], n + l);
+		for (int r = m; r < m + n; r++) p.set_point(v_strands[r - m], r - m);
+
+		if (p.size < 100)
+		{
+			std::cout << "DEBUG INFO:" << std::endl;
+			for (int row_i = 0; row_i < p.size; ++row_i)
+			{
+				std::cout << p.get_row_by_col(row_i) << " ";
+			}
+			std::cout << std::endl;
+
+			for (int row_i = 0; row_i < p.size; ++row_i)
+			{
+				std::cout << p.get_col_by_row(row_i) << " ";
+			}
+			std::cout << std::endl;
+		}
+
+		return p;
+	}
 };
 
 const long long R = 4294967279;

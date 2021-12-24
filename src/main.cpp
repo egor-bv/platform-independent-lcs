@@ -13,6 +13,7 @@
 #include "lcs.hpp"
 
 #include "semi_local.hpp"
+#include "combing.hpp"
 
 class Stopwatch
 {
@@ -92,8 +93,7 @@ int *LoadIntArrayFromFna(const char *filename, int *array_size)
 	{
 		std::getline(file, dataset_name);
 		file >> total_count;
-		std::cout << dataset_name;
-		std::cout << total_count;
+		std::cout << total_count << " ";
 		*array_size = total_count;
 		result = new int[total_count];
 		for (int i = 0; i < total_count; ++i)
@@ -254,8 +254,8 @@ static void ReportTime(const std::string &msg, sycl::event e)
 int main(int argc, char **argv)
 {
 	// NOTE(Egor): for test purposes, hardcoded filenames here
-	const char *file_a = "1.fna";
-	const char *file_b = "2.fna";
+	const char *file_a = "1small.fna";
+	const char *file_b = "2small.fna";
 
 	// loading code
 	int dataset_a_size = 0;
@@ -264,17 +264,18 @@ int main(int argc, char **argv)
 	int dataset_b_size = 0;
 	int *dataset_b = LoadIntArrayFromFna(file_b, &dataset_b_size);
 
-	//if (dataset_a_size < dataset_b_size)
-	//{
-	//	std::swap(dataset_a_size, dataset_b_size);
-	//	std::swap(dataset_a, dataset_b);
-	//}
+	std::cout << "\n-----------------------------------------------------------------------------\n";
 
-	InputSequencePair input(dataset_a, dataset_a_size, dataset_b, dataset_b_size);
+	// InputSequencePair input(dataset_a, dataset_a_size, dataset_b, dataset_b_size);
 
-	// semilocal hash!
+	// InputSequencePair input = ExampleInput(11, 19);
+	// InputSequencePair input = ExampleInput(17, 17);
+	// InputSequencePair input = ExampleInput(4, 5);
+	InputSequencePair input = ExampleInput(30002, 40001);
+
 	if (1)
 	{
+		if (1)
 		{
 			Stopwatch sw;
 
@@ -289,6 +290,17 @@ int main(int argc, char **argv)
 			std::cout << "time taken = " << sw.elapsed_ms() << "ms" << "\n";
 			std::cout << "lcs hash (my)  = " << hsh_my << "\n";
 			std::cout << "lcs hash (his) = " << hsh_his << "\n";
+		}
+		if (0)
+		{
+			Stopwatch sw;
+			long long hsh_my = StickyBraidAntidiagonalStairs(input);
+			sw.stop();
+
+			std::cout << "\n===============================================================\n";
+			std::cout << "staircase combing finished" << "\n";
+			std::cout << "time taken = " << sw.elapsed_ms() << "ms" << "\n";
+			std::cout << "lcs hash  = " << hsh_my << "\n";
 		}
 
 		if (1)
@@ -313,47 +325,16 @@ int main(int argc, char **argv)
 			}
 		}
 	}
-
-
-	if (0)
+	else
 	{
-		// now ready for testing!
-		PrefixLcsSequential lcs_seq;
-
+		std::cout << std::endl;
 		Stopwatch sw;
-		lcs_seq.Prepare(input);
-		int score = lcs_seq.Run(input);
-		sw.stop();
-
-		std::cout << "\n===============================================================\n";
-		std::cout << "sequential algo finished" << "\n";
-		std::cout << "time taken = " << sw.elapsed_ms() << "ms" << "\n";
-		std::cout << "lcs score  = " << score << "\n";
+		auto p = ExampleInput(7, 9);
+		auto hsh = StickyBraidAntidiagonal(p);
+		std::cout << "time taken:" << sw.elapsed_ms() << "ms" << std::endl;
 	}
 
-	//if (0)
-	//{
-	//	try
-	//	{
-	//		auto sel = sycl::cpu_selector();
-	//		sycl::queue q(sel, dpc_common::exception_handler);
 
-	//		PrefixLcsParallel lcs_par;
-	//		Stopwatch sw;
-	//		lcs_par.Prepare(input);
-	//		int score = lcs_par.RunNaive(q, input);
-
-	//		std::cout << "\n===============================================================\n";
-	//		std::cout << "parallel algo finished" << "\n";
-	//		std::cout << "time taken = " << sw.elapsed_ms() << "ms" << "\n";
-	//		std::cout << "lcs score  = " << score << "\n";
-	//	}
-	//	catch (sycl::exception e)
-	//	{
-	//		std::cout << "SYCL exception caught: " << e.what() << "\n";
-	//		return 1;
-	//	}
-	//}
 }
 
 //int old_main(int argc, char **argv)

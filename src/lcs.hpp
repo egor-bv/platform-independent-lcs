@@ -1,6 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <assert.h>
+#include <random>
 
 struct InputSequencePair
 {
@@ -13,6 +14,18 @@ struct InputSequencePair
 	{
 	}
 };
+
+InputSequencePair ExampleInput(int m, int n, int seed = 1)
+{
+	int *a = new int[m];
+	int *b = new int[n];
+
+	std::mt19937 rng(seed);
+	for (int i = 0; i < m; ++i) a[i] = rng() % 2;
+	for (int j = 0; j < n; ++j) b[j] = rng() % 2;
+
+	return InputSequencePair(a, m, b, n);
+}
 
 class PrefixLcsSolver
 {
