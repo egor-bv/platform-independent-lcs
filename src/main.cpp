@@ -254,8 +254,8 @@ static void ReportTime(const std::string &msg, sycl::event e)
 int main(int argc, char **argv)
 {
 	// NOTE(Egor): for test purposes, hardcoded filenames here
-	const char *file_a = "1small.fna";
-	const char *file_b = "2small.fna";
+	const char *file_a = "1.fna";
+	const char *file_b = "2.fna";
 
 	// loading code
 	int dataset_a_size = 0;
@@ -266,12 +266,13 @@ int main(int argc, char **argv)
 
 	std::cout << "\n-----------------------------------------------------------------------------\n";
 
-	// InputSequencePair input(dataset_a, dataset_a_size, dataset_b, dataset_b_size);
+	InputSequencePair input(dataset_a, dataset_a_size, dataset_b, dataset_b_size);
 
 	// InputSequencePair input = ExampleInput(11, 19);
 	// InputSequencePair input = ExampleInput(17, 17);
 	// InputSequencePair input = ExampleInput(4, 5);
-	InputSequencePair input = ExampleInput(30002, 40001);
+	// InputSequencePair input = ExampleInput(30002, 40001);
+	// InputSequencePair input = ExampleInput(3*30002, 3*40001);
 
 	if (1)
 	{
@@ -307,12 +308,12 @@ int main(int argc, char **argv)
 		{
 			try
 			{
-				auto sel = sycl::host_selector();
+				auto sel = sycl::cpu_selector();
 				sycl::queue q(sel, dpc_common::exception_handler);
 
 				Stopwatch sw;
+				//long long hsh = StickyBraidSycl(q, input);
 				long long hsh = StickyBraidParallelBlockwise(q, input);
-
 				std::cout << "\n===============================================================\n";
 				std::cout << "parallel algo finished" << "\n";
 				std::cout << "time taken = " << sw.elapsed_ms() << "ms" << "\n";
