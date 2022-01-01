@@ -5,15 +5,14 @@
 #include <chrono>
 
 #include "CL/sycl.hpp"
-#include "device_selector.hpp"
 
-// dpc_common.hpp can be found in the dev-utilities include folder.
-// e.g., $ONEAPI_ROOT/dev-utilities/<version>/include/dpc_common.hpp
 #include "dpc_common.hpp"
-#include "lcs.hpp"
 
+
+#include "lcs.hpp"
 #include "semi_local.hpp"
 #include "combing.hpp"
+#include "semi_local_core.hpp"
 
 class Stopwatch
 {
@@ -113,15 +112,6 @@ int *LoadIntArrayFromFna(const char *filename, int *array_size)
 	return result;
 }
 
-
-int *LoadExample(int *size)
-{
-	*size = 2;
-	int *result = new int[*size];
-	result[0] = 111;
-	result[1] = 888;
-	return result;
-}
 
 int LcsRowMajor(int *a, int m, int *b, int n, int *prev_row, int *curr_row)
 {
@@ -292,17 +282,6 @@ int main(int argc, char **argv)
 			std::cout << "lcs hash (my)  = " << hsh_my << "\n";
 			std::cout << "lcs hash (his) = " << hsh_his << "\n";
 		}
-		if (0)
-		{
-			Stopwatch sw;
-			long long hsh_my = StickyBraidAntidiagonalStairs(input);
-			sw.stop();
-
-			std::cout << "\n===============================================================\n";
-			std::cout << "staircase combing finished" << "\n";
-			std::cout << "time taken = " << sw.elapsed_ms() << "ms" << "\n";
-			std::cout << "lcs hash  = " << hsh_my << "\n";
-		}
 
 		if (1)
 		{
@@ -311,13 +290,14 @@ int main(int argc, char **argv)
 				auto sel = sycl::cpu_selector();
 				sycl::queue q(sel, dpc_common::exception_handler);
 
+				auto warmup = StickyBraidParallelBlockwise(q, input);
 				Stopwatch sw;
-				//long long hsh = StickyBraidSycl(q, input);
 				long long hsh = StickyBraidParallelBlockwise(q, input);
+				// long long hsh = StickyBraidSycl(q, input);
 				std::cout << "\n===============================================================\n";
 				std::cout << "parallel algo finished" << "\n";
 				std::cout << "time taken = " << sw.elapsed_ms() << "ms" << "\n";
-				std::cout << "new hash   = " << hsh << "\n";
+				std::cout << "new hash   = " << hsh  << "\n";
 			}
 			catch (sycl::exception e)
 			{
