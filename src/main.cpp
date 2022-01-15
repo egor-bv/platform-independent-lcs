@@ -47,7 +47,7 @@ int main(int argc, char **argv)
 			Stopwatch sw;
 
 			// long long hsh_my = StickyBraidSequentialHash(input.a, input.b, input.length_a, input.length_b);
-			long long hsh_my = StickyBraidSimplest(input);
+			long long hsh_my = StickyBraidAntidiagonal(input);
 			long long hsh_his = 0;// StickyBraidSimplest(input);
 			// long long hsh_his = sticky_braid_sequential(input.a, input.length_a, input.b, input.length_b);
 			sw.stop();
@@ -69,9 +69,9 @@ int main(int argc, char **argv)
 				auto sel = sycl::cpu_selector();
 				sycl::queue q(sel, dpc_common::exception_handler);
 
-				auto warmup = StickyBraidParallelBlockwise(q, input);
+				auto warmup = StickyBraidSycl(q, input);
 				Stopwatch sw;
-				long long hsh = StickyBraidParallelBlockwise(q, input);
+				long long hsh = StickyBraidSycl(q, input);
 				sw.stop();
 				auto elements_per_ms = (double)input.length_a * input.length_b / sw.elapsed_ms();
 				// long long hsh = StickyBraidSycl(q, input);
