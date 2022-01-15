@@ -150,11 +150,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\combing.hpp" />
-    <ClInclude Include="src\device_selector.hpp" />
+    <ClInclude Include="src\file_utility.hpp" />
     <ClInclude Include="src\lcs.hpp" />
     <ClInclude Include="src\permutation.hpp" />
     <ClInclude Include="src\semi_local.hpp" />
-    <ClInclude Include="src\semi_local_core.hpp" />
+    <ClInclude Include="src\stopwatch.hpp" />
     <ClInclude Include="src\utility.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
