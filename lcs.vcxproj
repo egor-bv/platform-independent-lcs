@@ -149,8 +149,7 @@
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\combing.hpp" />
-    <ClInclude Include="src\file_utility.hpp" />
+    <ClInclude Include="src\testing_utility.hpp" />
     <ClInclude Include="src\lcs.hpp" />
     <ClInclude Include="src\permutation.hpp" />
     <ClInclude Include="src\semi_local.hpp" />

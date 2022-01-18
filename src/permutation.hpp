@@ -1,6 +1,5 @@
 #pragma once
-#include <algorithm>
-#include <cmath>
+#include <inttypes.h>
 
 class PermutationMatrix
 {
@@ -45,58 +44,20 @@ public:
 		PermutationMatrix p(m + n);
 		for (int l = 0; l < m; l++) p.set_point(h_strands[l], n + l);
 		for (int r = m; r < m + n; r++) p.set_point(v_strands[r - m], r - m);
-
-		if (p.size < 100)
-		{
-			std::cout << "DEBUG INFO:" << std::endl;
-			for (int row_i = 0; row_i < p.size; ++row_i)
-			{
-				std::cout << p.get_row_by_col(row_i) << " ";
-			}
-			std::cout << std::endl;
-
-			for (int row_i = 0; row_i < p.size; ++row_i)
-			{
-				std::cout << p.get_col_by_row(row_i) << " ";
-			}
-			std::cout << std::endl;
-		}
-
 		return p;
 	}
 };
 
-const long long R = 4294967279;
-const long long M = 4294967291;
 
-long long hash(PermutationMatrix &arr, int size)
+int64_t hash(PermutationMatrix &arr, int size)
 {
-	long long hash = 0;
+	const int64_t R = 4294967279;
+	const int64_t M = 4294967291;
+
+	int64_t result = 0;
 	for (int i = 0; i < size; i++) {
-		hash = (R * hash + arr.get_row_by_col(i)) % M;
+		result = (R * result + arr.get_row_by_col(i)) % M;
 	}
-	return hash;
+	return result;
 }
 
-
-namespace std
-{
-
-template<>
-struct hash<PermutationMatrix>
-{
-
-	std::size_t operator()(const PermutationMatrix &p) const
-	{
-		std::size_t sum = 0;
-		int bits_per_symbol = int(std::ceil(log2(p.size)));
-
-		for (int i = 0; i < p.size; ++i)
-		{
-			sum = (sum << bits_per_symbol) + p.get_col_by_row(i);
-		}
-		return sum;
-	}
-};
-
-}
