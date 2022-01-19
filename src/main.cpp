@@ -25,7 +25,10 @@ int main(int argc, char **argv)
 	int dataset_b_size = 0;
 	int *dataset_b = LoadIntArrayFromFna(file_b, &dataset_b_size);
 
-	InputSequencePair input(dataset_a, dataset_a_size, dataset_b, dataset_b_size);
+	// InputSequencePair input(dataset_a, dataset_a_size, dataset_b, dataset_b_size);
+	InputSequencePair input = ExampleInput(8105, 8201);
+
+	ResultCsvWriter csv_writer("test");
 
 	if (1)
 	{
@@ -43,6 +46,8 @@ int main(int argc, char **argv)
 
 		std::cout << "elements/us = " << elements_per_ms / 1000.0 << "\n";
 		std::cout << "lcs hash (my)  = " << hsh << "\n";
+		
+		csv_writer.AppendResult("session", "serial", "some a", "some b", input.length_a, input.length_b, sw.elapsed_ms(), hsh);
 	}
 
 
@@ -53,6 +58,7 @@ int main(int argc, char **argv)
 		sycl::cpu_selector device_selector;
 		sycl::queue q(device_selector, dpc_common::exception_handler);
 
+		// semi_parallel_single_task(q, input);
 		Stopwatch sw;
 
 		auto p = semi_parallel_single_task(q, input);
@@ -68,6 +74,8 @@ int main(int argc, char **argv)
 
 		std::cout << "elements/us = " << elements_per_ms / 1000.0 << "\n";
 		std::cout << "lcs hash (my)  = " << hsh << "\n";
+
+		csv_writer.AppendResult("session", "parallel", "some a", "some b", input.length_a, input.length_b, sw.elapsed_ms(), hsh);
 	}
 
 }
