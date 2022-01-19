@@ -1,3 +1,0 @@
-    session_name|       algo_name|          a_name|          b_name|a_length|b_length|time_ms|         result_hash
-         session|          serial|          some a|          some b|    8105|    8201|150.122|           165510087
-         session|        parallel|          some a|          some b|    8105|    8201|851.194|           165510087
