@@ -31,48 +31,21 @@ void AntidiagonalCombBottomUp(const int *a, const int *b, int m, int n, int *h_s
 				int v_strand = v_strands[v_index];
 
 				bool need_swap = a[i] == b[j] || h_strand > v_strand;
+#if 1
 				h_strands[h_index] = need_swap ? v_strand : h_strand;
 				v_strands[v_index] = need_swap ? h_strand : v_strand;
+#else
+				if (need_swap)
+				{
+					h_strands[h_index] = v_strand;
+					v_strands[v_index] = h_strand;
+				}
+#endif
 			}
 
 		}
 	}
 }
-
-
-
-long long StickyBraidAntidiagonal(const InputSequencePair &p)
-{
-	int m = p.length_a;
-	int n = p.length_b;
-	const int *a = p.a;
-	const int *b = p.b;
-
-	int *h_strands = new int[m];
-	int *v_strands = new int[n];
-	for (int i = 0; i < m; ++i) h_strands[i] = i;
-	for (int j = 0; j < n; ++j) v_strands[j] = j + m;
-
-	AntidiagonalCombBottomUp(a, b, m, n, h_strands, v_strands);
-
-	{
-		PermutationMatrix p(m + n);
-		for (int l = 0; l < m; l++) p.set_point(h_strands[l], n + l);
-		for (int r = m; r < m + n; r++) p.set_point(v_strands[r - m], r - m);
-
-		long long result = hash(p, p.size);
-		delete[] h_strands;
-		delete[] v_strands;
-		return result;
-	}
-
-
-}
-
-
-
-
-
 
 
 void SingleTaskComb(sycl::queue q, const int *_a, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
@@ -196,36 +169,6 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a, const int *_b, int m, int
 	);
 }
 
-long long
-StickyBraidSycl(sycl::queue q, const InputSequencePair &p)
-{
-
-	int m = p.length_a;
-	int n = p.length_b;
-	const int *a = p.a;
-	const int *b = p.b;
-
-	int *h_strands = new int[m];
-	int *v_strands = new int[n];
-	for (int i = 0; i < m; ++i) h_strands[i] = i;
-	for (int j = 0; j < n; ++j) v_strands[j] = j + m;
-
-	SingleTaskComb(q, a, b, m, n, h_strands, v_strands);
-
-	{
-		PermutationMatrix p(m + n);
-		for (int l = 0; l < m; l++) p.set_point(h_strands[l], n + l);
-		for (int r = m; r < m + n; r++) p.set_point(v_strands[r - m], r - m);
-
-		long long result = hash(p, p.size);
-		delete[] h_strands;
-		delete[] v_strands;
-		return result;
-	}
-
-
-}
-
 
 template<class CombingProc>
 PermutationMatrix semi_local_lcs_cpu(CombingProc comb, const InputSequencePair &given)
@@ -248,6 +191,10 @@ PermutationMatrix semi_local_lcs_cpu(CombingProc comb, const InputSequencePair &
 	PermutationMatrix result(m + n);
 	for (int l = 0; l < m; l++) result.set_point(h_strands[l], n + l);
 	for (int r = m; r < m + n; r++) result.set_point(v_strands[r - m], r - m);
+
+
+	delete[] h_strands;
+	delete[] v_strands;
 
 	return result;
 }
@@ -272,6 +219,9 @@ PermutationMatrix semi_local_lcs_sycl(CombingProc comb, sycl::queue &q, const In
 	PermutationMatrix result(m + n);
 	for (int l = 0; l < m; l++) result.set_point(h_strands[l], n + l);
 	for (int r = m; r < m + n; r++) result.set_point(v_strands[r - m], r - m);
+
+	delete[] h_strands;
+	delete[] v_strands;
 
 	return result;
 }
