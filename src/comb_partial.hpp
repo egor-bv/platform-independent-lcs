@@ -60,6 +60,7 @@ double test_comb_partial_sycl(sycl::queue &q, const InputSequencePair &given, in
 
 			int diag_len = Min(i_first + 1, n - j_first);
 
+			int i_last = m - 1 - i_first;
 			q.submit(
 				[&](auto &h)
 				{
@@ -71,20 +72,103 @@ double test_comb_partial_sycl(sycl::queue &q, const InputSequencePair &given, in
 					h.parallel_for(sycl::range<1>{ diag_len },
 						[=](sycl::item<1> item)
 						{
-							int steps = item;
-							int i = i_first - steps;
-							int j = j_first + steps;
+							//int steps = item;
+							//// int i = i_first - steps;
+							//// int j = j_first + steps;
+							//int h_index = i_last + steps;
+							//int v_index = j_first + steps;
+							//int i = i_first - steps;
+							//int j = v_index;
+							//{
+							//	// int h_index = m - 1 - i;
+							//	// int v_index = j;
+							//	int h_strand = h_strands[h_index];
+							//	int v_strand = v_strands[v_index];
 
+							//	bool need_swap = a[i] == b[j] || h_strand > v_strand;
+							//	{
+							//		h_strands[h_index] = need_swap ? v_strand : h_strand;
+							//		v_strands[v_index] = need_swap ? h_strand : v_strand;
+							//	}
+							//}
+						}
+					);
+				}
+			);
+		}
+	}
+	sw.stop();
+
+	delete[] _h_strands;
+	delete[] _v_strands;
+
+	return sw.elapsed_ms();
+}
+
+
+double test_comb_partial_sycl_iter(sycl::queue &q, const InputSequencePair &given, int iter_count)
+{
+	const int m = given.length_a;
+	const int n = given.length_b;
+	const int *_a = given.a;
+	const int *_b = given.b;
+
+	// initialize strands
+	int *_h_strands = new int[m];
+	int *_v_strands = new int[n];
+	for (int i = 0; i < m; ++i) _h_strands[i] = i;
+	for (int j = 0; j < n; ++j) _v_strands[j] = j + m;
+
+	Stopwatch sw;
+	{
+		sycl::buffer<int, 1> buf_a(_a, m);
+		sycl::buffer<int, 1> buf_b(_b, n);
+		sycl::buffer<int, 1> buf_h_strands(_h_strands, m);
+		sycl::buffer<int, 1> buf_v_strands(_v_strands, n);
+
+		int internal_iter = 16;
+		// actual combing happens here
+		for (int diag_idx = m; diag_idx < m + iter_count; ++diag_idx)
+		{
+			int i_diag = diag_idx;
+			int i_first = i_diag < m ? i_diag : m - 1;
+			int j_first = i_diag < m ? 0 : i_diag - m + 1;
+
+			int diag_len = Min(i_first + 1, n - j_first);
+
+			int i_last = m - 1 - i_first;
+			q.submit(
+				[&](auto &h)
+				{
+					auto a = buf_a.get_access<sycl::access::mode::read>(h);
+					auto b = buf_b.get_access<sycl::access::mode::read>(h);
+					auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
+					auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
+
+					h.parallel_for(sycl::range<1>{ diag_len/internal_iter },
+						[=](sycl::item<1> item)
+						{
+							//int iter = 0;
+							for(int iter = 0; iter < internal_iter; ++iter)
 							{
-								int h_index = m - 1 - i;
-								int v_index = j;
-								int h_strand = h_strands[h_index];
-								int v_strand = v_strands[v_index];
-
-								bool need_swap = a[i] == b[j] || h_strand > v_strand;
+								int steps = item;// *internal_iter + iter;
+								// int i = i_first - steps;
+								// int j = j_first + steps;
+								int h_index = i_last + steps;
+								int v_index = j_first + steps;
+								int i = i_first - steps;
+								int j = v_index;
 								{
-									h_strands[h_index] = need_swap ? v_strand : h_strand;
-									v_strands[v_index] = need_swap ? h_strand : v_strand;
+									// int h_index = m - 1 - i;
+									// int v_index = j;
+									int h_strand = h_strands[h_index];
+									int v_strand = v_strands[v_index];
+
+									bool need_swap = a[i] == b[j] || h_strand > v_strand;
+									{
+										h_strands[h_index] = need_swap ? v_strand : h_strand;
+										v_strands[v_index] = need_swap ? h_strand : v_strand;
+									}
 								}
 							}
 						}
@@ -100,6 +184,7 @@ double test_comb_partial_sycl(sycl::queue &q, const InputSequencePair &given, in
 
 	return sw.elapsed_ms();
 }
+
 
 double test_comb_partial_sycl_single(sycl::queue &q, const InputSequencePair &given, int iter_count)
 {

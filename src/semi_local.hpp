@@ -31,16 +31,10 @@ void AntidiagonalCombBottomUp(const int *a, const int *b, int m, int n, int *h_s
 				int v_strand = v_strands[v_index];
 
 				bool need_swap = a[i] == b[j] || h_strand > v_strand;
-#if 1
+
 				h_strands[h_index] = need_swap ? v_strand : h_strand;
 				v_strands[v_index] = need_swap ? h_strand : v_strand;
-#else
-				if (need_swap)
-				{
-					h_strands[h_index] = v_strand;
-					v_strands[v_index] = h_strand;
-				}
-#endif
+
 			}
 
 		}
@@ -86,14 +80,54 @@ void SingleTaskComb(sycl::queue q, const int *_a, const int *_b, int m, int n, i
 
 								bool need_swap = a[i] == b[j] || h_strand > v_strand;
 
-								{
-									h_strands[h_index] = need_swap ? v_strand : h_strand;
-									v_strands[v_index] = need_swap ? h_strand : v_strand;
-								}
+								h_strands[h_index] = need_swap ? v_strand : h_strand;
+								v_strands[v_index] = need_swap ? h_strand : v_strand;
 
+								//int r = need_swap;
+								//h_strands[h_index] = (v_strand & (r - 1)) | ((-r) & h_strand);
+								//v_strands[v_index] = (h_strand & (r - 1)) | ((-r) & v_strand);
 							}
 						}
 					}
+				}
+			);
+		}
+	);
+}
+
+void SingleTaskCombRowMajor(sycl::queue q, const int *_a, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
+{
+	sycl::buffer<int, 1> buf_a(_a, m);
+	sycl::buffer<int, 1> buf_b(_b, n);
+	sycl::buffer<int, 1> buf_h_strands(_h_strands, m);
+	sycl::buffer<int, 1> buf_v_strands(_v_strands, n);
+
+	int diag_count = m + n - 1;
+
+	q.submit([&](auto &h)
+		{
+			auto a = buf_a.get_access<sycl::access::mode::read>(h);
+			auto b = buf_b.get_access<sycl::access::mode::read>(h);
+			auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
+			auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
+
+			h.single_task([=]()
+				{
+					for (int i = 0; i < m; ++i)
+						for (int j = 0; j < n; ++j)
+						{
+
+							int h_index = m - 1 - i;
+							int v_index = j;
+							int h_strand = h_strands[h_index];
+							int v_strand = v_strands[v_index];
+
+							bool need_swap = a[i] == b[j] || h_strand > v_strand;
+
+							h_strands[h_index] = need_swap ? v_strand : h_strand;
+							v_strands[v_index] = need_swap ? h_strand : v_strand;
+
+						}
 				}
 			);
 		}
@@ -146,22 +180,15 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a, const int *_b, int m, int
 								int v_strand = v_strands[v_index];
 
 								bool need_swap = a[i] == b[j] || h_strand > v_strand;
-#if 1
-								{
-									h_strands[h_index] = need_swap ? v_strand : h_strand;
-									v_strands[v_index] = need_swap ? h_strand : v_strand;
-								}
-#else
 
-								{
-									if (need_swap) h_strands[h_index] = v_strand;
-									if (need_swap) v_strands[v_index] = h_strand;
-								}
 
-#endif
+								h_strands[h_index] = need_swap ? v_strand : h_strand;
+								v_strands[v_index] = need_swap ? h_strand : v_strand;
+
 							}
+
 						}
-						// sg.barrier();
+						sg.barrier();
 					}
 				}
 				);
@@ -242,9 +269,190 @@ PermutationMatrix semi_parallel_single_task(sycl::queue q, const InputSequencePa
 	return semi_local_lcs_sycl(SingleTaskComb, q, given);
 }
 
+PermutationMatrix semi_parallel_single_task_row_major(sycl::queue q, const InputSequencePair &given)
+{
+	return semi_local_lcs_sycl(SingleTaskCombRowMajor, q, given);
+}
+
 PermutationMatrix semi_parallel_single_sub_group(sycl::queue q, const InputSequencePair &given)
 {
 	return semi_local_lcs_sycl(SingleWorkgroupComb, q, given);
 }
 
 
+
+// Iterate in rectangular blocks to reduce number of dispatches
+// It's also probably not correct w.r.t. memory writes/reads
+long long StickyBraidParallelBlockwise(sycl::queue &q, InputSequencePair p)
+{
+	int m = p.length_a;
+	int n = p.length_b;
+	const int *a = p.a;
+	const int *b = p.b;
+
+	int *h_strands = new int[m];
+	int *v_strands = new int[n];
+	for (int i = 0; i < m; ++i) h_strands[i] = i;
+	for (int j = 0; j < n; ++j) v_strands[j] = j + m;
+
+	size_t total_num_threads = 0;
+	{
+		sycl::buffer<int, 1> buf_a(p.a, p.length_a);
+		sycl::buffer<int, 1> buf_b(p.b, p.length_b);
+
+		sycl::buffer<int, 1> buf_h_strands(h_strands, m);
+		sycl::buffer<int, 1> buf_v_strands(v_strands, n);
+
+		int original_m = m;
+		int original_n = n;
+
+
+		const int block_m = 256;
+		const int block_n = 256;
+		m = (m + block_m - 1) / block_m;
+		n = (n + block_n - 1) / block_n;
+
+
+		int diag_count = m + n - 1;
+		// int max_diag_length = m; // say it's vertical!
+
+		int block_diag_count = block_m + block_n - 1;
+		// int block_diag_length = block_m;
+
+		for (int i_diag = 0; i_diag < diag_count; ++i_diag)
+		{
+			int i_first = i_diag < m ? i_diag : m - 1;
+			int j_first = i_diag < m ? 0 : i_diag - m + 1;
+			// along antidiagonal, i goes down, j goes up
+			int diag_len = std::min(i_first + 1, n - j_first);
+
+			total_num_threads += diag_len;
+			// each block antidiagonal is a separate kernel
+			q.submit(
+				[&](auto &h)
+				{
+					// accessors are defined here
+					auto acc_h_strands = buf_h_strands.get_access<sycl::access::mode::read_write, sycl::access::target::global_buffer>(h);
+					auto acc_v_strands = buf_v_strands.get_access<sycl::access::mode::read_write, sycl::access::target::global_buffer>(h);
+					auto acc_a = buf_a.get_access<sycl::access::mode::read, sycl::access::target::global_buffer>(h);
+					auto acc_b = buf_b.get_access<sycl::access::mode::read, sycl::access::target::global_buffer>(h);
+
+#if 1 // DEBUG: no inner loop
+					h.parallel_for(sycl::range<1>(diag_len),
+						[=](auto iter_steps)
+						{
+#if 1 // DEBUG: no work inside inner loop
+							int steps = iter_steps;
+							// block coordinates
+							int i_block = i_first - steps;
+							int j_block = j_first + steps;
+#if 1 // DEBUG: row-major iteration
+							// row-major iteration
+							for (int i_rel = 0; i_rel < block_m; ++i_rel)
+							{
+								for (int j_rel = 0; j_rel < block_n; j_rel++)
+								{
+									int i = i_block * block_m + i_rel;
+									int j = j_block * block_n + j_rel;
+									if (i >= original_m || j >= original_n)
+									{
+										continue;
+									}
+
+									int h_index = original_m - 1 - i;
+									int v_index = j;
+									int h_strand = acc_h_strands[h_index];
+									int v_strand = acc_v_strands[v_index];
+									bool need_swap = acc_a[i] == acc_b[j] || h_strand > v_strand;
+#if 1 // DEBUG: remove if
+									{
+										// maybe a little faster?
+										int r = (int)need_swap;
+										acc_h_strands[h_index] = (h_strand & (r - 1)) | ((-r) & v_strand);
+										acc_v_strands[v_index] = (v_strand & (r - 1)) | ((-r) & h_strand);
+									}
+#else
+									if (need_swap)
+									{
+										// swap
+										acc_h_strands[h_index] = v_strand;
+										acc_v_strands[v_index] = h_strand;
+									}
+#endif
+								}
+							}
+#else // DEBUG: anti-diagonal iteration
+							for (int i_block_diag = 0; i_block_diag < block_diag_count; ++i_block_diag)
+							{
+								int i_rel_first = i_block_diag < block_m ? i_block_diag : block_m - 1;
+								int j_rel_first = i_block_diag < block_m ? 0 : i_block_diag - block_m + 1;
+								int block_diag_len = Min(i_rel_first + 1, block_n - j_rel_first);
+								for (int block_steps = 0; block_steps < block_diag_len; ++block_steps)
+								{
+									int i_rel = i_rel_first - block_steps;
+									int j_rel = j_rel_first + block_steps;
+									int i_row0 = i_block * block_m + i_rel;
+									int j = j_block * block_n + j_rel;
+									bool inside = i_row0 < original_m &&j < original_n;
+
+
+									int h_index = original_m - 1 - i_row0;
+									int v_index = j;
+
+									int h_strand = inside ? acc_h_strands[h_index] : 0;
+									int v_strand = inside ? acc_v_strands[v_index] : 0;
+									int a_sym = inside ? acc_a[i_row0] : 0;
+									int b_sym = inside ? acc_b[j] : 0;
+									bool need_swap = (a_sym == b_sym || h_strand > v_strand) && inside;
+
+									{
+										if (need_swap) acc_h_strands[h_index] = v_strand;
+										if (need_swap) acc_v_strands[v_index] = h_strand;
+									}
+								}
+							}
+#endif
+#endif
+						}
+					);
+#endif
+
+				}
+			).wait();
+
+		}
+
+		m = original_m;
+		n = original_n;
+	}
+
+	//std::cout << "blockwise, total_num_threads: " << total_num_threads << "\n";
+	{
+		PermutationMatrix p(m + n);
+		for (int l = 0; l < m; l++) p.set_point(h_strands[l], n + l);
+		for (int r = m; r < m + n; r++) p.set_point(v_strands[r - m], r - m);
+
+		//if (p.size < 100)
+		//{
+		//	std::cout << "DEBUG INFO:" << std::endl;
+		//	for (int row_i = 0; row_i < p.size; ++row_i)
+		//	{
+		//		std::cout << p.get_row_by_col(row_i) << " ";
+		//	}
+		//	std::cout << std::endl;
+
+		//	for (int row_i = 0; row_i < p.size; ++row_i)
+		//	{
+		//		std::cout << p.get_col_by_row(row_i) << " ";
+		//	}
+		//	std::cout << std::endl;
+		//}
+
+
+
+		long long result = hash(p, p.size);
+		delete[] h_strands;
+		delete[] v_strands;
+		return result;
+	}
+}
