@@ -139,7 +139,7 @@ sycl::queue create_queue(char device)
 int main(int argc, char **argv)
 {
 	char device_type = 'c';
-	if (argc > 0 && argv[0][0] == 'g')
+	if (argc > 1 && argv[1][0] == 'g')
 	{
 		device_type = 'g';
 		std::cout << "using gpu device...\n\n";
