@@ -69,7 +69,8 @@ double test_comb_partial_sycl(sycl::queue &q, const InputSequencePair &given, in
 					auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
 					auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
 
-					h.parallel_for(sycl::range<1>{ diag_len },
+					const size_t global_size = diag_len;
+					h.parallel_for(sycl::range<1>{ global_size },
 						[=](sycl::item<1> item)
 						{
 							//int steps = item;
@@ -145,7 +146,8 @@ double test_comb_partial_sycl_iter(sycl::queue &q, const InputSequencePair &give
 					auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
 					auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
 
-					h.parallel_for(sycl::range<1>{ diag_len/internal_iter },
+					const size_t global_size = diag_len / internal_iter;
+					h.parallel_for(sycl::range<1>{ global_size },
 						[=](sycl::item<1> item)
 						{
 							//int iter = 0;

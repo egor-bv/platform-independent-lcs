@@ -10,7 +10,7 @@ private:
 
 	void record_latest()
 	{
-		latest_time = std::chrono::high_resolution_clock::now();
+		latest_time = std::chrono::steady_clock::now();
 	}
 
 public:
@@ -22,7 +22,7 @@ public:
 	void restart()
 	{
 		stopped = false;
-		start_time = std::chrono::high_resolution_clock::now();
+		start_time = std::chrono::steady_clock::now();
 	}
 
 	void stop()

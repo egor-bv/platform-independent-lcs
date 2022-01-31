@@ -65,7 +65,7 @@ struct ResultCsvWriter
 		std::string when = std::to_string(std::time(nullptr));
 		fout.open(filename + when + ".csv", std::ofstream::out);
 
-		fout.setstate(std::ios::left);
+		// fout.setstate(std::ios::left);
 		fout
 			<< std::setw(16) << "session_name" << "|"
 			<< std::setw(16) << "algo_name" << "|"
