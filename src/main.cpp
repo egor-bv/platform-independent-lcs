@@ -37,11 +37,12 @@ void compare_all(sycl::queue &q, const InputSequencePair &input)
 		return [f,&q](auto p) { return f(q, p); };
 	};
 
-	print_test("antidiagonal_cpu", semi_cpu_antidiag);
-	print_test("single_task", with_queue(semi_parallel_single_task));
-	print_test("single_task_row_major", with_queue(semi_parallel_single_task_row_major));
-	print_test("single_subgroup", with_queue(semi_parallel_single_sub_group));
+	// print_test("antidiagonal_cpu", semi_cpu_antidiag);
+	// print_test("single_task", with_queue(semi_parallel_single_task));
+	// print_test("single_task_row_major", with_queue(semi_parallel_single_task_row_major));
+	// print_test("single_subgroup", with_queue(semi_parallel_single_sub_group));
 	print_test("blockwise", with_queue(StickyBraidParallelBlockwise));
+	print_test("naive_sycl", with_queue(semi_parallel_naive_sycl));
 }
 
 

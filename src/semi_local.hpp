@@ -196,6 +196,52 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a, const int *_b, int m, int
 	);
 }
 
+void NaiveSyclComb(sycl::queue q, const int *_a, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
+{
+	sycl::buffer<int, 1> buf_a(_a, m);
+	sycl::buffer<int, 1> buf_b(_b, n);
+	sycl::buffer<int, 1> buf_h_strands(_h_strands, m);
+	sycl::buffer<int, 1> buf_v_strands(_v_strands, n);
+
+	int diag_count = m + n - 1;
+
+	for (int diag_idx = 0; diag_idx < diag_count; ++diag_idx)
+	{
+		q.submit([&](auto &h)
+			{
+				auto a = buf_a.get_access<sycl::access::mode::read>(h);
+				auto b = buf_b.get_access<sycl::access::mode::read>(h);
+				auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
+				auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
+
+				int i_first = diag_idx < m ? diag_idx : m - 1;
+				int j_first = diag_idx < m ? 0 : diag_idx - m + 1;
+				int diag_len = Min(i_first + 1, n - j_first);
+
+				h.parallel_for(sycl::nd_range<1>{ diag_len, 1024},
+					[=](sycl::nd_item<1> item)
+					{
+						int steps = item.get_global_linear_id();
+						int i = i_first - steps;
+						int j = j_first + steps;
+
+						int h_index = m - 1 - i;
+						int v_index = j;
+						int h_strand = h_strands[h_index];
+						int v_strand = v_strands[v_index];
+
+						bool need_swap = a[i] == b[j] || h_strand > v_strand;
+						h_strands[h_index] = need_swap ? v_strand : h_strand;
+						v_strands[v_index] = need_swap ? h_strand : v_strand;
+
+					}
+				);
+			}
+		);
+	}
+}
+
+
 
 template<class CombingProc>
 PermutationMatrix semi_local_lcs_cpu(CombingProc comb, const InputSequencePair &given)
@@ -277,6 +323,11 @@ PermutationMatrix semi_parallel_single_task_row_major(sycl::queue q, const Input
 PermutationMatrix semi_parallel_single_sub_group(sycl::queue q, const InputSequencePair &given)
 {
 	return semi_local_lcs_sycl(SingleWorkgroupComb, q, given);
+}
+
+PermutationMatrix semi_parallel_naive_sycl(sycl::queue q, const InputSequencePair &given)
+{
+	return semi_local_lcs_sycl(NaiveSyclComb, q, given);
 }
 
 
@@ -456,4 +507,4 @@ long long StickyBraidParallelBlockwise(sycl::queue &q, InputSequencePair p)
 		delete[] v_strands;
 		return result;
 	}
-}
+							}

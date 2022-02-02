@@ -561,7 +561,7 @@ double triad_sycl_iter_ms(sycl::queue &q, int num_elements)
 				auto c = c_buf.get_access<sycl::access::mode::write>(h);
 
 				const int num_iter = 1;
-				const int num_threads = num_elements / num_iter;
+				const size_t num_threads = num_elements / num_iter;
 
 				h.parallel_for(sycl::range<1>{ num_threads },
 					[=](sycl::item<1> i)
