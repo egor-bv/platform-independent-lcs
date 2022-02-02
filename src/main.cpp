@@ -13,7 +13,7 @@
 #include "comb_partial.hpp"
 
 
-void compare_all(sycl::queue q, const InputSequencePair &input)
+void compare_all(sycl::queue &q, const InputSequencePair &input)
 {
 	auto print_test = [&](const char *test_name, auto f)
 	{
@@ -45,7 +45,7 @@ void compare_all(sycl::queue q, const InputSequencePair &input)
 }
 
 
-void compare_combing(sycl::queue q, InputSequencePair input)
+void compare_combing(sycl::queue &q, InputSequencePair input)
 {
 	ResultCsvWriter csv_writer("test");
 	for (int i = 0; i < 2; ++i)
@@ -117,8 +117,8 @@ void test_partial_combing(sycl::queue q, int size)
 
 	std::cout << "\n== SYCL ==\n";
 	{
-		auto time_ms = test_comb_partial_sycl(q, given, 10000);
-		auto elements_per_us = 10000.0 * given.length_a / time_ms / 1000.0;
+		auto time_ms = test_comb_partial_sycl_iter(q, given, 100);
+		auto elements_per_us = 100.0 * given.length_a / time_ms / 1000.0;
 		std::cout << size << ": t = " << time_ms << "; e/us = " << elements_per_us << "\n";
 	}
 
@@ -136,6 +136,31 @@ sycl::queue create_queue(char device)
 	}
 }
 
+void test_triad(sycl::queue &q, int num_elements)
+{
+	std::cout << "count = " << num_elements << "\n";
+	{
+		double cpu_ms = triad_cpu_ms(num_elements);
+		double elem_per_us = num_elements / 1000.0f / cpu_ms;
+		std::cout << "CPU: " << elem_per_us << "\n";
+	}
+
+	{
+		double sycl_ms = triad_sycl_pinit_ms(q, num_elements);
+		double elem_per_us = num_elements / 1000.0f / sycl_ms;
+		std::cout << "SYCL: " << elem_per_us << "\n";
+	}
+
+	{
+		double sycl_ms = triad_sycl_single_ms(q, num_elements);
+		double elem_per_us = num_elements / 1000.0f / sycl_ms;
+		std::cout << "SYCL(single): " << elem_per_us << "\n";
+	}
+
+	std::cout << "========\n";
+}
+
+
 int main(int argc, char **argv)
 {
 	char device_type = 'c';
@@ -146,11 +171,23 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-		std::cout << "using cpu device\n\n";
+		std::cout << "using cpu device...\n\n";
 	}
 
 	auto q = create_queue(device_type);
 
-	compare_all(q, ExampleInput(40001, 50003));
+	//test_partial_combing(q, 1000);
+	//test_partial_combing(q, 1000000);
+	//test_partial_combing(q, 10000000);
+	//test_partial_combing(q, 40000);
+	
+	compare_all(q, ExampleInput(20001, 30003));
+
+	//test_triad(q, 1000);
+	//test_triad(q, 10000);
+	//test_triad(q, 100000);
+	//test_triad(q, 1000000);
+	//test_triad(q, 10000000);
+	//test_triad(q, 100000000);
 }
 

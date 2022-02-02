@@ -99,7 +99,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <SYCLWarningLevel>DisableAllWarnings</SYCLWarningLevel>
+      <SYCLWarningLevel>Level3</SYCLWarningLevel>
       <AdditionalIncludeDirectories>$(ONEAPI_ROOT)dev-utilities\latest\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -136,7 +136,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <SYCLWarningLevel>DisableAllWarnings</SYCLWarningLevel>
+      <SYCLWarningLevel>Level3</SYCLWarningLevel>
       <AdditionalIncludeDirectories>$(ONEAPI_ROOT)\dev-utilities\latest\include</AdditionalIncludeDirectories>
       <OpenMP>None</OpenMP>
     </ClCompile>

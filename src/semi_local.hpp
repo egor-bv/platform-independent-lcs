@@ -150,7 +150,7 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a, const int *_b, int m, int
 			auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
 			auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
 
-			int wg_size = 8;
+			const int wg_size = 8;
 
 			h.parallel_for(sycl::nd_range<1>{ wg_size, wg_size },
 				[=](sycl::nd_item<1> item)
@@ -340,6 +340,7 @@ long long StickyBraidParallelBlockwise(sycl::queue &q, InputSequencePair p)
 #if 1 // DEBUG: no inner loop
 					h.parallel_for(sycl::range<1>(diag_len),
 						[=](auto iter_steps)
+						// [[intel::kernel_args_restrict]]
 						{
 #if 1 // DEBUG: no work inside inner loop
 							int steps = iter_steps;
