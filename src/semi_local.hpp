@@ -150,6 +150,8 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a, const int *_b, int m, int
 			auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
 			auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
 
+			// Note: for sizes 1, 2, 4, 8 it makes no difference -- clearly something is very wrong
+			// actually, 8 is even worse than one -- it pretty much just doesn't work
 			const int wg_size = 8;
 
 			h.parallel_for(sycl::nd_range<1>{ wg_size, wg_size },

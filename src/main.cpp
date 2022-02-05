@@ -34,15 +34,15 @@ void compare_all(sycl::queue &q, const InputSequencePair &input)
 
 	auto with_queue = [&](auto f)
 	{
-		return [f,&q](auto p) { return f(q, p); };
+		return [f, &q](auto p) { return f(q, p); };
 	};
 
 	// print_test("antidiagonal_cpu", semi_cpu_antidiag);
 	// print_test("single_task", with_queue(semi_parallel_single_task));
 	// print_test("single_task_row_major", with_queue(semi_parallel_single_task_row_major));
-	// print_test("single_subgroup", with_queue(semi_parallel_single_sub_group));
-	print_test("blockwise", with_queue(StickyBraidParallelBlockwise));
-	print_test("naive_sycl", with_queue(semi_parallel_naive_sycl));
+	print_test("single_subgroup", with_queue(semi_parallel_single_sub_group));
+	// print_test("blockwise", with_queue(StickyBraidParallelBlockwise));
+	// print_test("naive_sycl", with_queue(semi_parallel_naive_sycl));
 }
 
 
@@ -161,34 +161,70 @@ void test_triad(sycl::queue &q, int num_elements)
 	std::cout << "========\n";
 }
 
+void simd_test(char mode, int input_size, int num_iterations)
+{
+	auto input = ExampleInput(input_size, input_size);
+	uint64_t total_elements = input_size * (uint64_t)input_size;
+	std::cout << "Total number of elements: " << total_elements << "\n";
+
+	auto print_test = [&](const char *test_name, auto f)
+	{
+		for (int iteration = 0; iteration < num_iterations; iteration++)
+		{
+			Stopwatch sw;
+			auto p = f(input);
+			sw.stop();
+
+			double elem_per_us = (double)input.length_a * (double)input.length_b / sw.elapsed_ms() / 1000.0f;
+
+			std::cout << test_name << ":  ";
+			std::cout << elem_per_us << " e/us\n";
+		}
+		std::cout << "\n";
+	};
+
+
+
+	if (mode == 'h') // host
+	{
+		std::cout << "Ordinary cpu code:\n";
+		print_test("antidiagonal_cpu", semi_cpu_antidiag);
+
+	}
+	else if (mode == 's') // sycl single subgroup
+	{
+		auto q = create_queue('c');
+
+		auto with_queue = [&](auto f)
+		{
+			return [f, &q](auto p) { return f(q, p); };
+		};
+
+		std::cout << "SYCL single sub-group:\n";
+		print_test("single_subgroup", with_queue(semi_parallel_single_sub_group));
+
+	}
+}
 
 int main(int argc, char **argv)
 {
-	char device_type = 'c';
-	if (argc > 1 && argv[1][0] == 'g')
+	char mode = 'h';
+	int input_size = 10000;
+	int num_iterations = 4;
+	if (argc >= 1 && argv[1])
 	{
-		device_type = 'g';
-		std::cout << "using gpu device...\n\n";
+		mode = argv[1][0];
 	}
-	else
+	if (argc >= 2 && argv[2])
 	{
-		std::cout << "using cpu device...\n\n";
+		input_size = atoi(argv[2]);
+	}
+	if (argc >= 3 && argv[3])
+	{
+		num_iterations = atoi(argv[3]);
 	}
 
-	auto q = create_queue(device_type);
+	simd_test(mode, input_size, num_iterations);
 
-	//test_partial_combing(q, 1000);
-	//test_partial_combing(q, 1000000);
-	//test_partial_combing(q, 10000000);
-	//test_partial_combing(q, 40000);
-	
-	compare_all(q, ExampleInput(20001, 30003));
-
-	//test_triad(q, 1000);
-	//test_triad(q, 10000);
-	//test_triad(q, 100000);
-	//test_triad(q, 1000000);
-	//test_triad(q, 10000000);
-	//test_triad(q, 100000000);
 }
 
