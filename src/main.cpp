@@ -208,7 +208,7 @@ void simd_test(char mode, int input_size, int num_iterations)
 
 int main(int argc, char **argv)
 {
-	char mode = 'h';
+	char mode = 's';
 	int input_size = 10000;
 	int num_iterations = 4;
 	if (argc >= 1 && argv[1])

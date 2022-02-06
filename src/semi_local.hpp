@@ -134,7 +134,7 @@ void SingleTaskCombRowMajor(sycl::queue q, const int *_a, const int *_b, int m, 
 	);
 }
 
-void SingleWorkgroupComb(sycl::queue q, const int *_a, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
+void SingleWorkgroupComb_(sycl::queue q, const int *_a, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
 {
 	sycl::buffer<int, 1> buf_a(_a, m);
 	sycl::buffer<int, 1> buf_b(_b, n);
@@ -150,13 +150,11 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a, const int *_b, int m, int
 			auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
 			auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
 
-			// Note: for sizes 1, 2, 4, 8 it makes no difference -- clearly something is very wrong
-			// actually, 8 is even worse than one -- it pretty much just doesn't work
 			const int wg_size = 8;
 
 			h.parallel_for(sycl::nd_range<1>{ wg_size, wg_size },
 				[=](sycl::nd_item<1> item)
-				[[cl::intel_reqd_sub_group_size(wg_size)]]
+				[[intel::reqd_sub_group_size(wg_size)]]
 				{
 					auto sg = item.get_sub_group();
 					int sglid = sg.get_local_id()[0];
@@ -197,6 +195,68 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a, const int *_b, int m, int
 		}
 	);
 }
+
+
+// trying to improve performance
+// NOTE: a is assumed reversed here!
+void SingleWorkgroupComb(sycl::queue q, const int *_a_rev, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
+{
+	sycl::buffer<int, 1> buf_a_rev(_a_rev, m);
+	sycl::buffer<int, 1> buf_b(_b, n);
+	sycl::buffer<int, 1> buf_h_strands(_h_strands, m);
+	sycl::buffer<int, 1> buf_v_strands(_v_strands, n);
+
+	constexpr size_t SG_POW2 = 3;
+	constexpr size_t SG_SIZE = 1 << SG_POW2;
+
+	const size_t diag_count = m + n - 1;
+
+	q.submit([&](auto &h)
+		{
+			auto a_rev = buf_a_rev.get_access<sycl::access::mode::read>(h);
+			auto b = buf_b.get_access<sycl::access::mode::read>(h);
+			auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
+			auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
+
+			h.parallel_for(
+				sycl::nd_range<1>(SG_SIZE, SG_SIZE),
+				[=](sycl::nd_item<1> item) [[intel::reqd_sub_group_size(SG_SIZE)]]
+				{
+					using IndexType = int;
+					auto sg = item.get_sub_group();
+					IndexType sg_id = sg.get_local_id()[0];
+					IndexType sg_range = sg.get_local_range()[0];
+
+					for (IndexType diag_idx = 0; diag_idx < diag_count; ++diag_idx)
+					{
+						IndexType i_first = diag_idx < m ? diag_idx : m - 1;
+						IndexType j_first = diag_idx < m ? 0 : diag_idx - m + 1;
+						IndexType diag_len = Min(i_first + 1, n - j_first);
+						IndexType i_last = m - 1 - i_first;
+
+						for (IndexType step = sg_id; step < diag_len; step += sg_range)
+						{
+							IndexType i = i_last + step;
+							IndexType j = j_first + step;
+							int a_sym = a_rev[i];
+							int b_sym = b[j];
+							int h_strand = h_strands[i];
+							int v_strand = v_strands[j];
+							int sym_equal = a_sym == b_sym;
+							int has_crossing = h_strand > v_strand;
+							int need_swap = sym_equal || has_crossing;
+							h_strands[i] = need_swap ? v_strand : h_strand;
+							v_strands[j] = need_swap ? h_strand : v_strand;
+						}
+						sg.barrier();
+					}
+				}
+			);
+
+				}
+	);
+}
+
 
 void NaiveSyclComb(sycl::queue q, const int *_a, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
 {
@@ -509,4 +569,4 @@ long long StickyBraidParallelBlockwise(sycl::queue &q, InputSequencePair p)
 		delete[] v_strands;
 		return result;
 	}
-							}
+}
