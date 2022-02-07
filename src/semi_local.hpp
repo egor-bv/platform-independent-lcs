@@ -134,7 +134,7 @@ void SingleTaskCombRowMajor(sycl::queue q, const int *_a, const int *_b, int m, 
 	);
 }
 
-void SingleWorkgroupComb_(sycl::queue q, const int *_a, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
+void SingleWorkgroupCombOld(sycl::queue q, const int *_a, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
 {
 	sycl::buffer<int, 1> buf_a(_a, m);
 	sycl::buffer<int, 1> buf_b(_b, n);
@@ -234,8 +234,11 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a_rev, const int *_b, int m,
 						IndexType diag_len = Min(i_first + 1, n - j_first);
 						IndexType i_last = m - 1 - i_first;
 
-						for (IndexType step = sg_id; step < diag_len; step += sg_range)
+						IndexType step_count = diag_len / SG_SIZE;
+						// for (IndexType step = sg_id; step < diag_len; step += SG_SIZE)
+						for(IndexType qstep = 0; qstep < step_count; ++qstep)
 						{
+							IndexType step = qstep * SG_SIZE + sg_id;
 							IndexType i = i_last + step;
 							IndexType j = j_first + step;
 							int a_sym = a_rev[i];
@@ -248,12 +251,31 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a_rev, const int *_b, int m,
 							h_strands[i] = need_swap ? v_strand : h_strand;
 							v_strands[j] = need_swap ? h_strand : v_strand;
 						}
+
+						// remainder
+						IndexType step = step_count * SG_SIZE + sg_id;
+						if(step < diag_len)
+						{
+							
+							IndexType i = i_last + step;
+							IndexType j = j_first + step;
+							int a_sym = a_rev[i];
+							int b_sym = b[j];
+							int h_strand = h_strands[i];
+							int v_strand = v_strands[j];
+							int sym_equal = a_sym == b_sym;
+							int has_crossing = h_strand > v_strand;
+							int need_swap = sym_equal || has_crossing;
+							h_strands[i] = need_swap ? v_strand : h_strand;
+							v_strands[j] = need_swap ? h_strand : v_strand;
+						}
+
 						sg.barrier();
 					}
 				}
 			);
 
-				}
+		}
 	);
 }
 
@@ -335,11 +357,22 @@ PermutationMatrix semi_local_lcs_cpu(CombingProc comb, const InputSequencePair &
 }
 
 template<class CombingProc>
-PermutationMatrix semi_local_lcs_sycl(CombingProc comb, sycl::queue &q, const InputSequencePair &given)
+PermutationMatrix semi_local_lcs_sycl(CombingProc comb, sycl::queue &q, const InputSequencePair &given, bool reverse_a = false)
 {
 	const int m = given.length_a;
 	const int n = given.length_b;
+
 	const int *a = given.a;
+	if (reverse_a)
+	{
+		int *a_rev = new int[given.length_a];
+		for (int i = 0; i < given.length_a; ++i)
+		{
+			a_rev[i] = given.a[given.length_a - 1 - i];
+		}
+		a = a_rev;
+	}
+
 	const int *b = given.b;
 
 	// initialize strands
@@ -357,6 +390,7 @@ PermutationMatrix semi_local_lcs_sycl(CombingProc comb, sycl::queue &q, const In
 
 	delete[] h_strands;
 	delete[] v_strands;
+	if (reverse_a) delete[] a;
 
 	return result;
 }
@@ -384,7 +418,7 @@ PermutationMatrix semi_parallel_single_task_row_major(sycl::queue q, const Input
 
 PermutationMatrix semi_parallel_single_sub_group(sycl::queue q, const InputSequencePair &given)
 {
-	return semi_local_lcs_sycl(SingleWorkgroupComb, q, given);
+	return semi_local_lcs_sycl(SingleWorkgroupComb, q, given, true);
 }
 
 PermutationMatrix semi_parallel_naive_sycl(sycl::queue q, const InputSequencePair &given)

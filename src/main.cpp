@@ -175,10 +175,11 @@ void simd_test(char mode, int input_size, int num_iterations)
 			auto p = f(input);
 			sw.stop();
 
+			auto result_hash = hash(p, p.size);
 			double elem_per_us = (double)input.length_a * (double)input.length_b / sw.elapsed_ms() / 1000.0f;
 
 			std::cout << test_name << ":  ";
-			std::cout << elem_per_us << " e/us\n";
+			std::cout << elem_per_us << " e/us,   " << result_hash << "\n";
 		}
 		std::cout << "\n";
 	};
@@ -208,8 +209,8 @@ void simd_test(char mode, int input_size, int num_iterations)
 
 int main(int argc, char **argv)
 {
-	char mode = 's';
-	int input_size = 10000;
+	char mode = 'h';
+	int input_size = 80000;
 	int num_iterations = 4;
 	if (argc >= 1 && argv[1])
 	{
@@ -224,7 +225,9 @@ int main(int argc, char **argv)
 		num_iterations = atoi(argv[3]);
 	}
 
-	simd_test(mode, input_size, num_iterations);
+	//simd_test(mode, input_size, num_iterations);
+	simd_test('h', input_size, num_iterations);
+	simd_test('s', input_size, num_iterations);
 
 }
 

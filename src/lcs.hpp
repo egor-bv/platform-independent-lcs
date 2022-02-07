@@ -22,7 +22,7 @@ InputSequencePair ExampleInput(int m, int n, int seed = 1)
 	int *b = new int[n];
 
 	std::mt19937 rng(seed);
-	for (int i = 0; i < m; ++i) a[i] = rng() % 2;
+	for (int i = 0; i < m; ++i) a[m - 1 - i] = rng() % 2;
 	for (int j = 0; j < n; ++j) b[j] = rng() % 2;
 
 	return InputSequencePair(a, m, b, n);
