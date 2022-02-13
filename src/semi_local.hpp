@@ -206,7 +206,7 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a_rev, const int *_b, int m,
 	sycl::buffer<int, 1> buf_h_strands(_h_strands, m);
 	sycl::buffer<int, 1> buf_v_strands(_v_strands, n);
 
-	constexpr size_t SG_POW2 = 3;
+	constexpr size_t SG_POW2 = 4;
 	constexpr size_t SG_SIZE = 1 << SG_POW2;
 
 	const size_t diag_count = m + n - 1;
@@ -222,25 +222,25 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a_rev, const int *_b, int m,
 				sycl::nd_range<1>(SG_SIZE, SG_SIZE),
 				[=](sycl::nd_item<1> item) [[intel::reqd_sub_group_size(SG_SIZE)]]
 				{
-					using IndexType = int;
+					using Index = int;
 					auto sg = item.get_sub_group();
-					IndexType sg_id = sg.get_local_id()[0];
-					IndexType sg_range = sg.get_local_range()[0];
+					Index sg_id = sg.get_local_id()[0];
+					Index sg_range = sg.get_local_range()[0];
 
-					for (IndexType diag_idx = 0; diag_idx < diag_count; ++diag_idx)
+					for (Index diag_idx = 0; diag_idx < diag_count; ++diag_idx)
 					{
-						IndexType i_first = diag_idx < m ? diag_idx : m - 1;
-						IndexType j_first = diag_idx < m ? 0 : diag_idx - m + 1;
-						IndexType diag_len = Min(i_first + 1, n - j_first);
-						IndexType i_last = m - 1 - i_first;
+						Index i_first = diag_idx < m ? diag_idx : m - 1;
+						Index j_first = diag_idx < m ? 0 : diag_idx - m + 1;
+						Index diag_len = Min(i_first + 1, n - j_first);
+						Index i_last = m - 1 - i_first;
 
-						IndexType step_count = diag_len / SG_SIZE;
-						// for (IndexType step = sg_id; step < diag_len; step += SG_SIZE)
-						for(IndexType qstep = 0; qstep < step_count; ++qstep)
+						Index step_count = diag_len >> SG_POW2;
+
+						for (Index qstep = 0; qstep < step_count; ++qstep)
 						{
-							IndexType step = qstep * SG_SIZE + sg_id;
-							IndexType i = i_last + step;
-							IndexType j = j_first + step;
+							Index step = qstep * SG_SIZE + sg_id;
+							Index i = i_last + step;
+							Index j = j_first + step;
 							int a_sym = a_rev[i];
 							int b_sym = b[j];
 							int h_strand = h_strands[i];
@@ -253,12 +253,12 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a_rev, const int *_b, int m,
 						}
 
 						// remainder
-						IndexType step = step_count * SG_SIZE + sg_id;
-						if(step < diag_len)
+						Index step = step_count * SG_SIZE + sg_id;
+						if (step < diag_len)
 						{
-							
-							IndexType i = i_last + step;
-							IndexType j = j_first + step;
+
+							Index i = i_last + step;
+							Index j = j_first + step;
 							int a_sym = a_rev[i];
 							int b_sym = b[j];
 							int h_strand = h_strands[i];
@@ -279,6 +279,128 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a_rev, const int *_b, int m,
 	);
 }
 
+
+
+void SingleSubgroupShuffledComb(sycl::queue q, const int *_a_rev, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
+{
+	sycl::buffer<int, 1> buf_a_rev(_a_rev, m);
+	sycl::buffer<int, 1> buf_b(_b, n);
+	sycl::buffer<int, 1> buf_h_strands(_h_strands, m);
+	sycl::buffer<int, 1> buf_v_strands(_v_strands, n);
+
+	constexpr size_t SG_POW2 = 3;
+	constexpr size_t SG_SIZE = 1 << SG_POW2;
+	const int num_rows = m / SG_SIZE;
+	const int num_full_horz_steps = n / SG_SIZE;
+
+	q.submit([&](auto &h)
+		{
+			auto a_rev = buf_a_rev.get_access<sycl::access::mode::read>(h);
+			auto b = buf_b.get_access<sycl::access::mode::read>(h);
+			auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
+			auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
+
+			h.parallel_for(
+				sycl::nd_range<1>(SG_SIZE, SG_SIZE),
+				[=](sycl::nd_item<1> item) [[intel::reqd_sub_group_size(SG_SIZE)]]
+				{
+					// NOTE: must be signed?
+					using Index = int;
+					auto sg = item.get_sub_group();
+					auto sg_id = sg.get_local_id()[0];
+
+					// 1. top row is unaligned
+					{
+						// TODO...
+					}
+
+					// main case:
+					for (int row = 0; row < num_rows; ++row)
+					{
+						sg.barrier();
+						int i = (num_rows - row - 1) * SG_SIZE + sg_id;
+						int a_sym = a_rev[i];
+						int h = h_strands[i];
+
+						int b_sym0 = 0;
+						int b_sym1 = 0;
+						int b_sym = 0;
+
+						int v0 = 0;
+						int v1 = 0;
+						int v = 0;
+
+
+						// beginning: exactly one block read
+						//{
+						//	int j = sg_id;
+						//	v0 = v_strands[j];
+						//	b_sym0 = b[j];
+						//	for (int shift = SG_SIZE - 1; shift >= 0; --shift)
+						//	{
+						//		sg.barrier();
+						//		v = sg.shuffle_up(v0, shift);
+						//		b_sym = sg.shuffle_up(b_sym0, shift);
+
+						//		bool need_swap = a_sym == b_sym || h > v;
+						//		h = (need_swap && sg_id >= shift) ? v : h;
+						//		v = (need_swap && sg_id >= shift) ? h : v;
+
+						//		v0 = (sg_id < (SG_SIZE - shift)) ? sg.shuffle_down(v, shift) : v0;
+						//		
+						//	}
+						//}
+
+						// v0 is leftmost part here
+
+						for (int horz_step = 1; horz_step < num_full_horz_steps; ++horz_step)
+						{
+							int j = horz_step * SG_SIZE + sg_id;
+							v1 = v_strands[j];
+							b_sym1 = b[j];
+
+							for (int s0 = 1; s0 <= SG_SIZE; ++s0)
+							{
+								sg.barrier();
+								int s1 = SG_SIZE - s0;
+
+								v = sg_id < s1 ? sg.shuffle_down(v0, s0) : sg.shuffle_up(v1, s1);
+								b_sym = sg_id < s1 ? sg.shuffle_down(b_sym0, s0) : sg.shuffle_up(b_sym1, s1);
+
+								bool need_swap = a_sym == b_sym || h > v;
+								h = need_swap ? v : h;
+								v = need_swap ? h : v;
+
+								v0 = sg_id < s0 ? v0 : sg.shuffle_up(v, s0);
+								v1 = sg_id >= s0 ? v1 : sg.shuffle_down(v, s1);
+							}
+							sg.barrier();
+							// write back v0
+							int j0 = j - SG_SIZE;
+							v_strands[j0] = v0;
+							v0 = v1;
+							b_sym0 = b_sym1;
+						}
+
+
+						// ending: this is somewhat more complicated...
+						// uses both v0 and v1 ...
+						{
+							// TODO...
+						}
+
+						//write back horizontal
+						h_strands[i] = h;
+
+					}
+
+					// NOTE: bottom rows are naturally aligned
+				}
+			);
+
+		}
+	);
+}
 
 void NaiveSyclComb(sycl::queue q, const int *_a, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
 {
@@ -418,7 +540,7 @@ PermutationMatrix semi_parallel_single_task_row_major(sycl::queue q, const Input
 
 PermutationMatrix semi_parallel_single_sub_group(sycl::queue q, const InputSequencePair &given)
 {
-	return semi_local_lcs_sycl(SingleWorkgroupComb, q, given, true);
+	return semi_local_lcs_sycl(SingleSubgroupShuffledComb, q, given, true);
 }
 
 PermutationMatrix semi_parallel_naive_sycl(sycl::queue q, const InputSequencePair &given)
@@ -602,5 +724,5 @@ long long StickyBraidParallelBlockwise(sycl::queue &q, InputSequencePair p)
 		delete[] h_strands;
 		delete[] v_strands;
 		return result;
-	}
-}
+									}
+								}
