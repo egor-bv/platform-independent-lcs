@@ -7,7 +7,7 @@
 
 
 // best so far
-void AntidiagonalCombBottomUp(const int *a, const int *b, int m, int n, int *h_strands, int *v_strands)
+void AntidiagonalCombBottomUpNoReverse(const int *a, const int *b, int m, int n, int *h_strands, int *v_strands)
 {
 	int diag_count = m + n - 1;
 
@@ -40,6 +40,43 @@ void AntidiagonalCombBottomUp(const int *a, const int *b, int m, int n, int *h_s
 		}
 	}
 }
+
+void AntidiagonalCombBottomUp(const int *a_rev, const int *b, int m, int n, int *h_strands, int *v_strands)
+{
+	int diag_count = m + n - 1;
+
+	for (int i_diag = 0; i_diag < diag_count; ++i_diag)
+	{
+		int i_first = i_diag < m ? i_diag : m - 1;
+		int j_first = i_diag < m ? 0 : i_diag - m + 1;
+
+		// along antidiagonal, i goes down, j goes up
+		int diag_len = Min(i_first + 1, n - j_first);
+		int i_last = m - 1 - i_first;
+
+		for (int steps = 0; steps < diag_len; ++steps)
+		{
+			// actual grid coordinates
+			int i = i_last + steps;
+			int j = j_first + steps;
+
+			{
+				int h_index = i;
+				int v_index = j;
+				int h_strand = h_strands[h_index];
+				int v_strand = v_strands[v_index];
+
+				bool need_swap = a_rev[i] == b[j] || h_strand > v_strand;
+
+				h_strands[h_index] = need_swap ? v_strand : h_strand;
+				v_strands[v_index] = need_swap ? h_strand : v_strand;
+
+			}
+
+		}
+	}
+}
+
 
 
 void SingleTaskComb(sycl::queue q, const int *_a, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
@@ -206,7 +243,7 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a_rev, const int *_b, int m,
 	sycl::buffer<int, 1> buf_h_strands(_h_strands, m);
 	sycl::buffer<int, 1> buf_v_strands(_v_strands, n);
 
-	constexpr size_t SG_POW2 = 4;
+	constexpr size_t SG_POW2 = 3;
 	constexpr size_t SG_SIZE = 1 << SG_POW2;
 
 	const size_t diag_count = m + n - 1;
@@ -279,7 +316,246 @@ void SingleWorkgroupComb(sycl::queue q, const int *_a_rev, const int *_b, int m,
 	);
 }
 
+// this works remarkably well, but is it even correct? want to find out!
+void SingleSubgroupNotShuffledComb_Incomplete(sycl::queue q, const int *_a_rev, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
+{
+	sycl::buffer<int, 1> buf_a_rev(_a_rev, m);
+	sycl::buffer<int, 1> buf_b(_b, n);
+	sycl::buffer<int, 1> buf_h_strands(_h_strands, m);
+	sycl::buffer<int, 1> buf_v_strands(_v_strands, n);
 
+	constexpr size_t SG_POW2 = 4;
+	constexpr size_t SG_SIZE = 1 << SG_POW2;
+	const int num_rows = m / SG_SIZE;
+	q.submit([&](auto &h)
+		{
+			auto a_rev = buf_a_rev.get_access<sycl::access::mode::read>(h);
+			auto b = buf_b.get_access<sycl::access::mode::read>(h);
+			auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
+			auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
+
+			h.parallel_for(
+				sycl::nd_range<1>(SG_SIZE, SG_SIZE),
+				[=](sycl::nd_item<1> item) [[intel::reqd_sub_group_size(SG_SIZE)]]
+				{
+					auto sg = item.get_sub_group();
+					int sg_id = sg.get_local_linear_id();
+					for (int row = 0; row < num_rows; ++row)
+					{
+						int i = (num_rows - row - 1) * SG_SIZE + sg_id;
+						int a_sym = a_rev[i];
+						int h = h_strands[i];
+
+						for (int horz_step = 0; horz_step < n - SG_SIZE; ++horz_step)
+						{
+							int j = horz_step + sg_id;
+							int b_sym = b[j];
+							int v = v_strands[j];
+
+							bool need_swap = a_sym == b_sym || h > v;
+							h = need_swap ? v : h;
+							v = need_swap ? h : v;
+							v_strands[j] = v;
+							sg.barrier();
+						}
+						h_strands[i] = h;
+						sg.barrier();
+					}
+				}
+			);
+
+		}
+	);
+}
+
+
+// this version with keeping things in-register -- completely 100% borked
+void SingleSubgroupNotShuffledComb(sycl::queue q, const int *_a_rev, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
+{
+	sycl::buffer<int, 1> buf_a_rev(_a_rev, m);
+	sycl::buffer<int, 1> buf_b(_b, n);
+	sycl::buffer<int, 1> buf_h_strands(_h_strands, m);
+	sycl::buffer<int, 1> buf_v_strands(_v_strands, n);
+
+	constexpr size_t SG_POW2 = 4;
+	constexpr size_t SG_SIZE = 1 << SG_POW2;
+	const int num_rows = m / SG_SIZE;
+	q.submit([&](auto &h)
+		{
+			auto a_rev = buf_a_rev.get_access<sycl::access::mode::read>(h);
+			auto b = buf_b.get_access<sycl::access::mode::read>(h);
+			auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
+			auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
+
+			h.parallel_for(
+				sycl::nd_range<1>(SG_SIZE, SG_SIZE),
+				[=](sycl::nd_item<1> item) [[intel::reqd_sub_group_size(SG_SIZE)]]
+				{
+					auto sg = item.get_sub_group();
+					int sg_id = sg.get_local_linear_id();
+
+					// topmost row
+
+					for (int row = 0; row < num_rows; ++row)
+					{
+						int i = (num_rows - row - 1) * SG_SIZE + sg_id;
+						int a_sym = a_rev[i];
+						int h = h_strands[i];
+
+						// first columns
+
+						for (int horz_step = 1 - SG_SIZE; horz_step < 0; ++horz_step)
+						{
+							int j = horz_step + sg_id;
+							if (j >= 0)
+							{
+								int b_sym = b[j];
+								int v = v_strands[j];
+
+								bool need_swap = a_sym == b_sym || h > v;
+								h = need_swap ? v : h;
+								v = need_swap ? h : v;
+								v_strands[j] = v;
+							}
+							sg.barrier();
+						}
+
+						// middle columns
+
+						for (int horz_step = 0; horz_step < n - SG_SIZE; ++horz_step)
+						{
+							int j = horz_step + sg_id;
+							int b_sym = b[j];
+							int v = v_strands[j];
+
+							bool need_swap = a_sym == b_sym || h > v;
+							h = need_swap ? v : h;
+							v = need_swap ? h : v;
+							v_strands[j] = v;
+							sg.barrier();
+						}
+
+						// last columns
+						for (int horz_step = n - SG_SIZE; horz_step < n; ++horz_step)
+						{
+							int j = horz_step + sg_id;
+							if (j < n)
+							{
+								int b_sym = b[j];
+								int v = v_strands[j];
+
+								bool need_swap = a_sym == b_sym || h > v;
+								h = need_swap ? v : h;
+								v = need_swap ? h : v;
+								v_strands[j] = v;
+							}
+							sg.barrier();
+						}
+
+						h_strands[i] = h;
+						sg.barrier();
+					}
+				}
+			);
+
+		}
+	);
+}
+
+
+void SingleSubgroupNotShuffledCombSoSo(sycl::queue q, const int *_a_rev, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
+{
+	sycl::buffer<int, 1> buf_a_rev(_a_rev, m);
+	sycl::buffer<int, 1> buf_b(_b, n);
+	sycl::buffer<int, 1> buf_h_strands(_h_strands, m);
+	sycl::buffer<int, 1> buf_v_strands(_v_strands, n);
+
+	constexpr size_t SG_POW2 = 3;
+	constexpr size_t SG_SIZE = 1 << SG_POW2;
+	const int num_rows = m / SG_SIZE;
+	q.submit([&](auto &h)
+		{
+			auto a_rev = buf_a_rev.get_access<sycl::access::mode::read>(h);
+			auto b = buf_b.get_access<sycl::access::mode::read>(h);
+			auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
+			auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
+
+			h.parallel_for(
+				sycl::nd_range<1>(SG_SIZE, SG_SIZE),
+				[=](sycl::nd_item<1> item) [[intel::reqd_sub_group_size(SG_SIZE)]]
+				{
+					auto sg = item.get_sub_group();
+					int sg_id = sg.get_local_linear_id();
+
+					// topmost row
+
+					for (int row = 0; row < num_rows; ++row)
+					{
+						int i = (num_rows - row - 1) * SG_SIZE + sg_id;
+						int a_sym = a_rev[i];
+
+
+						// first columns
+						for (int horz_step = 1 - SG_SIZE; horz_step < 0; ++horz_step)
+						{
+							int j = horz_step + sg_id;
+							if (j >= 0)
+							{
+								int b_sym = b[j];
+								int v = v_strands[j];
+								int h = h_strands[i];
+
+								bool need_swap = a_sym == b_sym || h > v;
+								h_strands[i] = need_swap ? v : h;
+								v_strands[j] = need_swap ? h : v;
+
+							}
+							sg.barrier();
+						}
+
+						// middle columns
+						for (int horz_step = 0; horz_step < n - SG_SIZE; ++horz_step)
+						{
+							int j = horz_step + sg_id;
+							int b_sym = b[j];
+							int h = h_strands[i];
+							int v = v_strands[j];
+
+							bool need_swap = a_sym == b_sym || h > v;
+							h_strands[i] = need_swap ? h : v;
+							v_strands[j] = need_swap ? v : h;
+
+
+							sg.barrier();
+						}
+
+						// last columns
+						for (int horz_step = n - SG_SIZE; horz_step < n; ++horz_step)
+						{
+							int j = horz_step + sg_id;
+							if (j < n)
+							{
+								int b_sym = b[j];
+								int h = h_strands[i];
+								int v = v_strands[j];
+
+								bool need_swap = a_sym == b_sym || h > v;
+								h_strands[i] = need_swap ? v : h;
+								v_strands[j] = need_swap ? h : v;
+
+							}
+							sg.barrier();
+						}
+
+						// h_strands[i] = h;
+						sg.barrier();
+					}
+				}
+			);
+
+		}
+	);
+}
 
 void SingleSubgroupShuffledComb(sycl::queue q, const int *_a_rev, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
 {
@@ -319,6 +595,8 @@ void SingleSubgroupShuffledComb(sycl::queue q, const int *_a_rev, const int *_b,
 					{
 						sg.barrier();
 						int i = (num_rows - row - 1) * SG_SIZE + sg_id;
+						
+						// load from vertical
 						int a_sym = a_rev[i];
 						int h = h_strands[i];
 
@@ -331,7 +609,7 @@ void SingleSubgroupShuffledComb(sycl::queue q, const int *_a_rev, const int *_b,
 						int v = 0;
 
 
-						// beginning: exactly one block read
+						//// beginning: exactly one block read
 						//{
 						//	int j = sg_id;
 						//	v0 = v_strands[j];
@@ -347,7 +625,7 @@ void SingleSubgroupShuffledComb(sycl::queue q, const int *_a_rev, const int *_b,
 						//		v = (need_swap && sg_id >= shift) ? h : v;
 
 						//		v0 = (sg_id < (SG_SIZE - shift)) ? sg.shuffle_down(v, shift) : v0;
-						//		
+
 						//	}
 						//}
 
@@ -364,15 +642,17 @@ void SingleSubgroupShuffledComb(sycl::queue q, const int *_a_rev, const int *_b,
 								sg.barrier();
 								int s1 = SG_SIZE - s0;
 
-								v = sg_id < s1 ? sg.shuffle_down(v0, s0) : sg.shuffle_up(v1, s1);
-								b_sym = sg_id < s1 ? sg.shuffle_down(b_sym0, s0) : sg.shuffle_up(b_sym1, s1);
+								int sv0 = sg.shuffle_down(v0, s0);
+								int sv1 = sg.shuffle_up(v1, s1);
+								v = (s0 < s1) ? sv0 : sv1;
+								b_sym = (s0 < s1) ? sg.shuffle_down(b_sym0, s0) : sg.shuffle_up(b_sym1, s1);
 
 								bool need_swap = a_sym == b_sym || h > v;
 								h = need_swap ? v : h;
 								v = need_swap ? h : v;
 
-								v0 = sg_id < s0 ? v0 : sg.shuffle_up(v, s0);
-								v1 = sg_id >= s0 ? v1 : sg.shuffle_down(v, s1);
+								v0 = (sg_id < s0) ? v0 : sg.shuffle_up(v, s0);
+								v1 = (sg_id >= s0) ? v1 : sg.shuffle_down(v, s1);
 							}
 							sg.barrier();
 							// write back v0
@@ -447,6 +727,86 @@ void NaiveSyclComb(sycl::queue q, const int *_a, const int *_b, int m, int n, in
 	}
 }
 
+// a is assumed_reversed
+void AntidiagSyclComb(sycl::queue q, const int *_a_rev, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
+{
+	sycl::buffer<int, 1> buf_a_rev(_a_rev, m);
+	sycl::buffer<int, 1> buf_b(_b, n);
+	sycl::buffer<int, 1> buf_h_strands(_h_strands, m);
+	sycl::buffer<int, 1> buf_v_strands(_v_strands, n);
+
+	int diag_count = m + n - 1;
+
+	constexpr size_t SG_POW2 = 3;
+	constexpr size_t SG_SIZE = 1 << SG_POW2;
+	constexpr size_t SG_ITERATIONS = 1;
+
+
+	for (int diag_idx = 0; diag_idx < diag_count; ++diag_idx)
+	{
+		int i_first = diag_idx < m ? diag_idx : m - 1;
+		int j_first = diag_idx < m ? 0 : diag_idx - m + 1;
+		int diag_len = Min(i_first + 1, n - j_first);
+		int i_last = m - 1 - i_first;
+
+		int global_size = SmallestMultipleToFit(SG_SIZE * SG_ITERATIONS, diag_len) * SG_SIZE;
+		
+		q.submit([&](auto &h)
+			{
+				auto a_rev = buf_a_rev.get_access<sycl::access::mode::read>(h);
+				auto b = buf_b.get_access<sycl::access::mode::read>(h);
+				auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
+				auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
+
+				// Note: workgroup consists of exactly one subgroup here
+				h.parallel_for(
+					sycl::nd_range<1>{ global_size, SG_SIZE },
+					[=](sycl::nd_item<1> item) [[intel::reqd_sub_group_size(SG_SIZE)]]
+					{
+						auto sg = item.get_sub_group();
+						int sg_id = sg.get_local_linear_id();
+						int step_first = item.get_group_linear_id() * SG_SIZE * SG_ITERATIONS;
+						int step_last = step_first + SG_SIZE * SG_ITERATIONS;
+						int real_last = Min(step_last, diag_len);
+						int complete_iterations = (real_last - step_first) / SG_SIZE;
+						for (int sg_iter = 0; sg_iter < complete_iterations; ++sg_iter)
+						{
+							int step = step_first + sg_iter * SG_SIZE + sg_id;
+							int i = i_last + step;
+							int j = j_first + step;
+
+							int h_strand = h_strands[i];
+							int v_strand = v_strands[j];
+
+							bool need_swap = a_rev[i] == b[j] || h_strand > v_strand;
+							h_strands[i] = need_swap ? v_strand : h_strand;
+							v_strands[j] = need_swap ? h_strand : v_strand;
+
+						}
+
+						// remainder
+						{
+							int step = step_first + SG_SIZE * complete_iterations + sg_id;
+							if (step < diag_len)
+							{
+								int i = i_last + step;
+								int j = j_first + step;
+
+								int h_strand = h_strands[i];
+								int v_strand = v_strands[j];
+
+								bool need_swap = a_rev[i] == b[j] || h_strand > v_strand;
+								h_strands[i] = need_swap ? v_strand : h_strand;
+								v_strands[j] = need_swap ? h_strand : v_strand;
+							}
+						}
+					}
+				);
+			}
+		);
+	}
+}
+
 
 
 template<class CombingProc>
@@ -467,9 +827,7 @@ PermutationMatrix semi_local_lcs_cpu(CombingProc comb, const InputSequencePair &
 	comb(a, b, m, n, h_strands, v_strands);
 
 
-	PermutationMatrix result(m + n);
-	for (int l = 0; l < m; l++) result.set_point(h_strands[l], n + l);
-	for (int r = m; r < m + n; r++) result.set_point(v_strands[r - m], r - m);
+	PermutationMatrix result = PermutationMatrix::FromStrands(h_strands, m, v_strands, n);
 
 
 	delete[] h_strands;
@@ -506,9 +864,7 @@ PermutationMatrix semi_local_lcs_sycl(CombingProc comb, sycl::queue &q, const In
 	comb(q, a, b, m, n, h_strands, v_strands);
 
 	// write resulting permutation matrix
-	PermutationMatrix result(m + n);
-	for (int l = 0; l < m; l++) result.set_point(h_strands[l], n + l);
-	for (int r = m; r < m + n; r++) result.set_point(v_strands[r - m], r - m);
+	PermutationMatrix result = PermutationMatrix::FromStrands(h_strands, m, v_strands, n);
 
 	delete[] h_strands;
 	delete[] v_strands;
@@ -540,12 +896,17 @@ PermutationMatrix semi_parallel_single_task_row_major(sycl::queue q, const Input
 
 PermutationMatrix semi_parallel_single_sub_group(sycl::queue q, const InputSequencePair &given)
 {
-	return semi_local_lcs_sycl(SingleSubgroupShuffledComb, q, given, true);
+	return semi_local_lcs_sycl(SingleSubgroupNotShuffledComb, q, given, false);
 }
 
 PermutationMatrix semi_parallel_naive_sycl(sycl::queue q, const InputSequencePair &given)
 {
 	return semi_local_lcs_sycl(NaiveSyclComb, q, given);
+}
+
+PermutationMatrix semi_parallel_antidiag(sycl::queue q, const InputSequencePair &given)
+{
+	return semi_local_lcs_sycl(AntidiagSyclComb, q, given);
 }
 
 
@@ -724,5 +1085,5 @@ long long StickyBraidParallelBlockwise(sycl::queue &q, InputSequencePair p)
 		delete[] h_strands;
 		delete[] v_strands;
 		return result;
-									}
-								}
+	}
+}

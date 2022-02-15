@@ -205,12 +205,25 @@ void simd_test(char mode, int input_size, int num_iterations)
 		print_test("single_subgroup", with_queue(semi_parallel_single_sub_group));
 
 	}
+	else if (mode == 'm')
+	{
+
+		auto q = create_queue('c');
+
+		auto with_queue = [&](auto f)
+		{
+			return [f, &q](auto p) { return f(q, p); };
+		};
+
+		std::cout << "SYCL single sub-group:\n";
+		print_test("multithreaded", with_queue(semi_parallel_antidiag));
+	}
 }
 
 int main(int argc, char **argv)
 {
 	char mode = 'h';
-	int input_size = 80003;
+	int input_size = 48;
 	int num_iterations = 4;
 	if (argc >= 1 && argv[1])
 	{
@@ -228,6 +241,6 @@ int main(int argc, char **argv)
 	//simd_test(mode, input_size, num_iterations);
 	simd_test('h', input_size, num_iterations);
 	simd_test('s', input_size, num_iterations);
-
+	//simd_test('m', input_size, num_iterations);
 }
 

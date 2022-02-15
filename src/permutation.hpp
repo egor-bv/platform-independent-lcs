@@ -42,6 +42,21 @@ public:
 	static PermutationMatrix FromStrands(int *h_strands, int m, int *v_strands, int n)
 	{
 		PermutationMatrix p(m + n);
+		if (m + n < 100)
+		{
+			std::cout << "<.......>\n";
+			for (int i = 0; i < m; ++i)
+			{
+				std::cout << h_strands[i] << " ";
+			}
+			std::cout << "\n";
+			for (int j = 0; j < n; ++j)
+			{
+				std::cout << v_strands[j] << " ";
+			}
+			std::cout << "\n";
+		}
+
 		for (int l = 0; l < m; l++) p.set_point(h_strands[l], n + l);
 		for (int r = m; r < m + n; r++) p.set_point(v_strands[r - m], r - m);
 		return p;
