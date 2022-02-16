@@ -586,101 +586,67 @@ void SingleSubgroupShuffledComb(sycl::queue q, const int *_a_rev, const int *_b,
 				sycl::nd_range<1>(SG_SIZE, SG_SIZE),
 				[=](sycl::nd_item<1> item) [[intel::reqd_sub_group_size(SG_SIZE)]]
 				{
-					// NOTE: must be signed?
-					using Index = int;
+					// TODO: do everything *very* carefully
 					auto sg = item.get_sub_group();
-					auto sg_id = sg.get_local_id()[0];
+					int sg_id = sg.get_local_linear_id();
 
-					// 1. top row is unaligned
-					{
-						// TODO...
-					}
-
-					// main case:
+					// starting with aligned rows...
 					for (int row = 0; row < num_rows; ++row)
 					{
-						sg.barrier();
 						int i = (num_rows - row - 1) * SG_SIZE + sg_id;
-						
-						// load from vertical
 						int a_sym = a_rev[i];
 						int h = h_strands[i];
 
-						int b_sym0 = 0;
-						int b_sym1 = 0;
-						int b_sym = 0;
-
 						int v0 = 0;
 						int v1 = 0;
-						int v = 0;
 
+						int b_sym0 = 0;
+						int b_sym1 = 0;
 
-						//// beginning: exactly one block read
-						//{
-						//	int j = sg_id;
-						//	v0 = v_strands[j];
-						//	b_sym0 = b[j];
-						//	for (int shift = SG_SIZE - 1; shift >= 0; --shift)
-						//	{
-						//		sg.barrier();
-						//		v = sg.shuffle_up(v0, shift);
-						//		b_sym = sg.shuffle_up(b_sym0, shift);
+						int j0 = sg_id;
+						v0 = v_strands[j0];
 
-						//		bool need_swap = a_sym == b_sym || h > v;
-						//		h = (need_swap && sg_id >= shift) ? v : h;
-						//		v = (need_swap && sg_id >= shift) ? h : v;
+						b_sym0 = b[j0];
 
-						//		v0 = (sg_id < (SG_SIZE - shift)) ? sg.shuffle_down(v, shift) : v0;
-
-						//	}
-						//}
-
-						// v0 is leftmost part here
-
+						// now for the most interesting part...
 						for (int horz_step = 1; horz_step < num_full_horz_steps; ++horz_step)
 						{
-							int j = horz_step * SG_SIZE + sg_id;
-							v1 = v_strands[j];
-							b_sym1 = b[j];
+							int j1 = horz_step * SG_SIZE + sg_id;
+							v1 = v_strands[j1];
+							b_sym1 = b[j1];
 
-							for (int s0 = 1; s0 <= SG_SIZE; ++s0)
+							// now to shifting...
+							for (int s0 = 0; s0 < SG_SIZE; ++s0)
 							{
-								sg.barrier();
 								int s1 = SG_SIZE - s0;
 
-								int sv0 = sg.shuffle_down(v0, s0);
-								int sv1 = sg.shuffle_up(v1, s1);
-								v = (s0 < s1) ? sv0 : sv1;
-								b_sym = (s0 < s1) ? sg.shuffle_down(b_sym0, s0) : sg.shuffle_up(b_sym1, s1);
+								int v = sg_id < s1 ? sg.shuffle_down(v0, s0) : sg.shuffle_up(v1, s1);
+								int b_sym = sg_id < s1 ? sg.shuffle_down(b_sym0, s0) : sg.shuffle_up(b_sym1, s1); // b[j1 + s0];
 
 								bool need_swap = a_sym == b_sym || h > v;
-								h = need_swap ? v : h;
-								v = need_swap ? h : v;
+								int new_h = need_swap ? v : h;
+								int new_v = need_swap ? h : v;
 
-								v0 = (sg_id < s0) ? v0 : sg.shuffle_up(v, s0);
-								v1 = (sg_id >= s0) ? v1 : sg.shuffle_down(v, s1);
+								v = new_v;
+								h = new_h;
+								
+								// place back
+								v0 = sg_id >= s0 ? sg.shuffle_up(v, s0) : v0;
+								v1 = sg_id < s0 ? sg.shuffle_down(v, s1) : v1;
+
 							}
-							sg.barrier();
-							// write back v0
-							int j0 = j - SG_SIZE;
+
+
 							v_strands[j0] = v0;
 							v0 = v1;
+							j0 = j1;
 							b_sym0 = b_sym1;
 						}
 
-
-						// ending: this is somewhat more complicated...
-						// uses both v0 and v1 ...
-						{
-							// TODO...
-						}
-
-						//write back horizontal
+						// at last!
 						h_strands[i] = h;
-
 					}
 
-					// NOTE: bottom rows are naturally aligned
 				}
 			);
 
@@ -756,7 +722,7 @@ void AntidiagSyclComb(sycl::queue q, const int *_a_rev, const int *_b, int m, in
 		int i_last = m - 1 - i_first;
 
 		int global_size = SmallestMultipleToFit(SG_SIZE * SG_ITERATIONS, diag_len) * SG_SIZE;
-		
+
 		q.submit([&](auto &h)
 			{
 				auto a_rev = buf_a_rev.get_access<sycl::access::mode::read>(h);
@@ -902,7 +868,7 @@ PermutationMatrix semi_parallel_single_task_row_major(sycl::queue q, const Input
 
 PermutationMatrix semi_parallel_single_sub_group(sycl::queue q, const InputSequencePair &given)
 {
-	return semi_local_lcs_sycl(SingleSubgroupNotShuffledComb, q, given, false);
+	return semi_local_lcs_sycl(SingleSubgroupShuffledComb, q, given, false);
 }
 
 PermutationMatrix semi_parallel_naive_sycl(sycl::queue q, const InputSequencePair &given)

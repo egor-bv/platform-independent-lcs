@@ -223,7 +223,7 @@ void simd_test(char mode, int input_size, int num_iterations)
 int main(int argc, char **argv)
 {
 	char mode = 'h';
-	int input_size = 80000;
+	int input_size = 47;
 	int num_iterations = 4;
 	if (argc >= 1 && argv[1])
 	{
@@ -239,8 +239,12 @@ int main(int argc, char **argv)
 	}
 
 	//simd_test(mode, input_size, num_iterations);
-	simd_test('h', input_size, num_iterations);
-	simd_test('s', input_size, num_iterations);
+	// simd_test('h', input_size, num_iterations);
+	// simd_test('s', input_size, num_iterations);
+	simd_test('s', 47, 2);
+	simd_test('s', 2000, 4);
+	simd_test('s', 50000, 4);
+
 	//simd_test('m', input_size, num_iterations);
 }
 
