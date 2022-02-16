@@ -369,7 +369,7 @@ void SingleSubgroupNotShuffledComb_Incomplete(sycl::queue q, const int *_a_rev, 
 }
 
 
-// this version with keeping things in-register -- completely 100% borked
+// this does work now (for sizes multiple of SG_SIZE), but not very fast (also SG_SIZE 16 is considerably faster than 8)
 void SingleSubgroupNotShuffledComb(sycl::queue q, const int *_a_rev, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
 {
 	sycl::buffer<int, 1> buf_a_rev(_a_rev, m);
@@ -413,8 +413,10 @@ void SingleSubgroupNotShuffledComb(sycl::queue q, const int *_a_rev, const int *
 								int v = v_strands[j];
 
 								bool need_swap = a_sym == b_sym || h > v;
-								h = need_swap ? v : h;
-								v = need_swap ? h : v;
+								int new_h = need_swap ? v : h;
+								int new_v = need_swap ? h : v;
+								h = new_h;
+								v = new_v;
 								v_strands[j] = v;
 							}
 							sg.barrier();
@@ -429,8 +431,10 @@ void SingleSubgroupNotShuffledComb(sycl::queue q, const int *_a_rev, const int *
 							int v = v_strands[j];
 
 							bool need_swap = a_sym == b_sym || h > v;
-							h = need_swap ? v : h;
-							v = need_swap ? h : v;
+							int new_h = need_swap ? v : h;
+							int new_v = need_swap ? h : v;
+							h = new_h;
+							v = new_v;
 							v_strands[j] = v;
 							sg.barrier();
 						}
@@ -445,8 +449,10 @@ void SingleSubgroupNotShuffledComb(sycl::queue q, const int *_a_rev, const int *
 								int v = v_strands[j];
 
 								bool need_swap = a_sym == b_sym || h > v;
-								h = need_swap ? v : h;
-								v = need_swap ? h : v;
+								int new_h = need_swap ? v : h;
+								int new_v = need_swap ? h : v;
+								h = new_h;
+								v = new_v;
 								v_strands[j] = v;
 							}
 							sg.barrier();
