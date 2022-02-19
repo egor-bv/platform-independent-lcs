@@ -139,6 +139,7 @@
       <SYCLWarningLevel>Level3</SYCLWarningLevel>
       <AdditionalIncludeDirectories>$(ONEAPI_ROOT)\dev-utilities\latest\include</AdditionalIncludeDirectories>
       <OpenMP>None</OpenMP>
+      <FSYCLDeadArgsOptimization>Default</FSYCLDeadArgsOptimization>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -151,11 +152,14 @@
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\comb_partial.hpp" />
+    <ClInclude Include="src\semi_base_structure.hpp" />
+    <ClInclude Include="src\semi_reference.hpp" />
+    <ClInclude Include="src\semi_single_subgroup_antidiagonal.hpp" />
+    <ClInclude Include="src\semi_single_subgroup_staircase.hpp" />
     <ClInclude Include="src\testing_utility.hpp" />
-    <ClInclude Include="src\lcs.hpp" />
+    <ClInclude Include="src\semi_lcs_types.hpp" />
     <ClInclude Include="src\permutation.hpp" />
-    <ClInclude Include="src\semi_local.hpp" />
+    <ClInclude Include="src\semi_lcs_api.hpp" />
     <ClInclude Include="src\stopwatch.hpp" />
     <ClInclude Include="src\utility.hpp" />
   </ItemGroup>
