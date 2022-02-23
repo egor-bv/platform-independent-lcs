@@ -140,6 +140,7 @@
       <AdditionalIncludeDirectories>$(ONEAPI_ROOT)\dev-utilities\latest\include</AdditionalIncludeDirectories>
       <OpenMP>None</OpenMP>
       <FSYCLDeadArgsOptimization>Default</FSYCLDeadArgsOptimization>
+      <AdditionalOptions>/arch:CORE-AVX2 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -156,6 +157,7 @@
     <ClInclude Include="src\semi_reference.hpp" />
     <ClInclude Include="src\semi_single_subgroup_antidiagonal.hpp" />
     <ClInclude Include="src\semi_single_subgroup_staircase.hpp" />
+    <ClInclude Include="src\semi_tiled.hpp" />
     <ClInclude Include="src\testing_utility.hpp" />
     <ClInclude Include="src\semi_lcs_types.hpp" />
     <ClInclude Include="src\permutation.hpp" />

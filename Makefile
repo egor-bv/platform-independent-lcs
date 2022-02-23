@@ -1,5 +1,5 @@
 CXX = dpcpp
-CXXFLAGS = -O2 -g -std=c++17
+CXXFLAGS = -O2 -g -std=c++17 -xCORE-AVX2
 
 LCS_TEST_EXE_NAME = lcs_test
 LCS_TEST_SOURCES = src/main.cpp

@@ -16,3 +16,13 @@ inline int SmallestMultipleToFit(int multiple_of, int to_fit)
 	int result = (to_fit + multiple_of - 1) / multiple_of;
 	return result;
 }
+
+
+template<class T>
+inline void if_swap(bool need_swap, T &var0, T &var1)
+{
+	auto new_var0 = need_swap ? var1 : var0;
+	auto new_var1 = need_swap ? var0 : var1;
+	var0 = new_var0;
+	var1 = new_var1;
+}

@@ -229,3 +229,46 @@ void StickyBraidComb_StaircaseCrosslane(sycl::queue q, const int *_a_rev, const 
 		}
 	);
 }
+
+template <int SG_POW2>
+void StickyBraidComb_StaircaseLocal(sycl::queue q, const int *_a_rev, const int *_b, int m, int n, int *_h_strands, int *_v_strands)
+{
+	sycl::buffer<int, 1> buf_a_rev(_a_rev, m);
+	sycl::buffer<int, 1> buf_b(_b, n);
+	sycl::buffer<int, 1> buf_h_strands(_h_strands, m);
+	sycl::buffer<int, 1> buf_v_strands(_v_strands, n);
+
+	constexpr size_t SG_SIZE = 1 << SG_POW2;
+	const int num_rows = m / SG_SIZE;
+	q.submit([&](auto &h)
+		{
+			auto a_rev = buf_a_rev.get_access<sycl::access::mode::read>(h);
+			auto b = buf_b.get_access<sycl::access::mode::read>(h);
+			auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
+			auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
+
+			h.parallel_for(
+				sycl::nd_range<1>(SG_SIZE, SG_SIZE),
+				[=](sycl::nd_item<1> item) [[intel::reqd_sub_group_size(SG_SIZE)]]
+				{
+					auto sg = item.get_sub_group();
+					int sg_id = sg.get_local_linear_id();
+
+					// topmost row
+
+					for (int row = 0; row < num_rows; ++row)
+					{
+						int i = (num_rows - row - 1) * SG_SIZE + sg_id;
+						int a_sym = a_rev[i];
+						int h = h_strands[i];
+
+
+						h_strands[i] = h;
+						sg.barrier();
+					}
+				}
+			);
+
+		}
+	);
+}

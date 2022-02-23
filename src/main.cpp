@@ -67,11 +67,11 @@ void RunBenchmarkCpu(std::string algo_name, int input_size, int num_iterations)
 			auto result = func(given);
 			sw.stop();
 
-			int64_t hash = result.hash();
+			int64_t result_hash = result.hash();
 			double time_taken_ms = sw.elapsed_ms();
 			double cells_per_us = total_size / time_taken_ms / 1000.0;
 
-			std::cout << cells_per_us << " cells/us" << "\n";
+			std::cout << cells_per_us << " cells/us" << "; hash = " << result_hash << "\n";
 
 
 		}
@@ -118,12 +118,20 @@ void RunBenchmarkCpu(std::string algo_name, int input_size, int num_iterations)
 		{
 			run_tests_with_q(algo_name, SemiLcs_SubgroupStaircaseCrosslane);
 		}
+		else if (algo_name == "staircase-local")
+		{
+			run_tests_with_q(algo_name, SemiLcs_SubgroupStaircaseLocal);
+		}
+		else if (algo_name == "tiled")
+		{
+			run_tests_with_q(algo_name, SemiLcs_Tiled);
+		}
 	}
 }
 
 int main(int argc, char **argv)
 {
-	int input_size = 10000;
+	int input_size = 32*1024;
 	int num_iterations = 4;
 	std::string algo_name = "all";
 
@@ -143,20 +151,27 @@ int main(int argc, char **argv)
 	}
 	
 
+#if 1
 	if (algo_name == "all")
 	{
 		RunBenchmarkCpu("reference", input_size, num_iterations);
 		RunBenchmarkCpu("antidiagonal8", input_size, num_iterations);
 		RunBenchmarkCpu("antidiagonal16", input_size, num_iterations);
-		RunBenchmarkCpu("staircase-global8", input_size, num_iterations);
-		RunBenchmarkCpu("staircase-global16", input_size, num_iterations);
-		RunBenchmarkCpu("staircase-crosslane", input_size, num_iterations);
+		// RunBenchmarkCpu("staircase-global8", input_size, num_iterations);
+		// RunBenchmarkCpu("staircase-global16", input_size, num_iterations);
+		// RunBenchmarkCpu("staircase-crosslane", input_size, num_iterations);
+		RunBenchmarkCpu("tiled", input_size, num_iterations);
 	}
 	else 
 	{
 		RunBenchmarkCpu(algo_name, input_size, num_iterations);
 	}
-
+#else
+	{
+		RunBenchmarkCpu("tiled", 32 * 1024, 4);
+		RunBenchmarkCpu("reference", 32 * 1024, 4);
+	}
+#endif
 	ShutdownQueues();
 	return 0;
 }
