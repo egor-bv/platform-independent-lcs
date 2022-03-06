@@ -126,14 +126,18 @@ void RunBenchmarkCpu(std::string algo_name, int input_size, int num_iterations)
 		{
 			run_tests_with_q(algo_name, SemiLcs_Tiled);
 		}
+		else if (algo_name == "tiled-mt")
+		{
+			run_tests_with_q(algo_name, SemiLcs_Tiled_MT);
+		}
 	}
 }
 
 int main(int argc, char **argv)
 {
-	int input_size = 32*1024;
+	int input_size = 32 * 1024;
 	int num_iterations = 4;
-	std::string algo_name = "all";
+	std::string algo_name = "tiled-mt";
 
 	// parse arguments to replace defaults
 	if (argc > 1 && argv[1])
@@ -149,7 +153,7 @@ int main(int argc, char **argv)
 	{
 		num_iterations = atoi(argv[3]);
 	}
-	
+
 
 #if 1
 	if (algo_name == "all")
@@ -161,15 +165,22 @@ int main(int argc, char **argv)
 		// RunBenchmarkCpu("staircase-global16", input_size, num_iterations);
 		// RunBenchmarkCpu("staircase-crosslane", input_size, num_iterations);
 		RunBenchmarkCpu("tiled", input_size, num_iterations);
+		RunBenchmarkCpu("tiled-mt", input_size, num_iterations);
 	}
-	else 
+	else
 	{
 		RunBenchmarkCpu(algo_name, input_size, num_iterations);
 	}
 #else
 	{
-		RunBenchmarkCpu("tiled", 32 * 1024, 4);
-		RunBenchmarkCpu("reference", 32 * 1024, 4);
+		//RunBenchmarkCpu("tiled", 32 * 1024, 4);
+		//RunBenchmarkCpu("reference", 32 * 1024, 4);
+
+		RunBenchmarkCpu("tiled-mt", 128 * 1024, 4);
+		RunBenchmarkCpu("tiled", 128 * 1024, 4);
+		RunBenchmarkCpu("reference", 128 * 1024, 4);
+		// RunBenchmarkCpu("tiled-mt", 1024, 2);
+		// RunBenchmarkCpu("reference", 1024, 2);
 	}
 #endif
 	ShutdownQueues();
