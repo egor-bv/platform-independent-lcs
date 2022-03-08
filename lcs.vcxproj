@@ -158,6 +158,7 @@
     <ClInclude Include="src\semi_single_subgroup_antidiagonal.hpp" />
     <ClInclude Include="src\semi_single_subgroup_staircase.hpp" />
     <ClInclude Include="src\semi_tiled.hpp" />
+    <ClInclude Include="src\semi_tiled_universal.hpp" />
     <ClInclude Include="src\testing_utility.hpp" />
     <ClInclude Include="src\semi_lcs_types.hpp" />
     <ClInclude Include="src\permutation.hpp" />

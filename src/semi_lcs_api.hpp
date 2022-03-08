@@ -17,6 +17,7 @@
 #include "semi_base_structure.hpp"
 
 #include "semi_tiled.hpp"
+#include "semi_tiled_universal.hpp"
 
 #include "permutation.hpp"
 #include "utility.hpp"

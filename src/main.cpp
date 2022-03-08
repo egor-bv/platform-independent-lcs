@@ -50,6 +50,30 @@ void ShutdownQueues()
 	}
 }
 
+template<class F>
+void RunBenchmark2(F func, int input_size, int num_iterations)
+{
+	auto given = ExampleInput(input_size, input_size);
+	auto &q = GetOrCreateQueue("cpu");
+	int64_t total_size = (int64_t)input_size * input_size;
+	std::cout << "... ... ...\n";
+	for (int iter = 0; iter < num_iterations; ++iter)
+	{
+		Stopwatch sw;
+		auto result = func(q, given);
+		sw.stop();
+
+		int64_t result_hash = result.hash();
+		double time_taken_ms = sw.elapsed_ms();
+		double cells_per_us = total_size / time_taken_ms / 1000.0;
+
+		std::cout << cells_per_us << " cells/us" << "; hash = " << result_hash << "\n";
+
+
+	}
+}
+
+
 void RunBenchmarkCpu(std::string algo_name, int input_size, int num_iterations)
 {
 	auto given = ExampleInput(input_size, input_size);
@@ -130,6 +154,10 @@ void RunBenchmarkCpu(std::string algo_name, int input_size, int num_iterations)
 		{
 			run_tests_with_q(algo_name, SemiLcs_Tiled_MT);
 		}
+		else if (algo_name == "tiled-new")
+		{
+			run_tests_with_q(algo_name, SemiLcs_Tiled_Universal<16, 3, 3, 24>);
+		}
 	}
 }
 
@@ -155,7 +183,7 @@ int main(int argc, char **argv)
 	}
 
 
-#if 1
+#if 0
 	if (algo_name == "all")
 	{
 		RunBenchmarkCpu("reference", input_size, num_iterations);
@@ -173,14 +201,19 @@ int main(int argc, char **argv)
 	}
 #else
 	{
-		//RunBenchmarkCpu("tiled", 32 * 1024, 4);
-		//RunBenchmarkCpu("reference", 32 * 1024, 4);
+		int size = 100000;
+		int num_iterations = 4;
+#define BENCHMARK(SG_SIZE, TILE_M, TILE_N, TARGET_THREADS) \
+		std::cout << SG_SIZE << " " << TILE_M << " " << TILE_N << " " << TARGET_THREADS << "\n";\
+	RunBenchmark2(SemiLcs_Tiled_Universal<SG_SIZE, TILE_M, TILE_N, TARGET_THREADS>, size, num_iterations);
 
-		RunBenchmarkCpu("tiled-mt", 128 * 1024, 4);
-		RunBenchmarkCpu("tiled", 128 * 1024, 4);
-		RunBenchmarkCpu("reference", 128 * 1024, 4);
-		// RunBenchmarkCpu("tiled-mt", 1024, 2);
-		// RunBenchmarkCpu("reference", 1024, 2);
+		BENCHMARK(16, 16, 16, 15);
+		BENCHMARK(16, 8, 8, 15);
+		BENCHMARK(16, 7, 7, 15);
+		BENCHMARK(16, 6, 6, 15);
+		BENCHMARK(16, 5, 5, 15);
+		BENCHMARK(16, 4, 4, 15);
+		BENCHMARK(16, 3, 3, 15);
 	}
 #endif
 	ShutdownQueues();
