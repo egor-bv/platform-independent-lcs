@@ -1,4 +1,4 @@
-name: build_linux
+name: build
 
 on: push
 
@@ -24,13 +24,17 @@ env:
   SAMPLES_TAG: 2022.1.0
 
 jobs:
-  build_linux_dpcpp:
+  build_linux_apt_dpcpp:
     runs-on: ubuntu-20.04
     defaults:
       run:
         shell: bash
     steps:
     - uses: actions/checkout@v2
+    - name: setup apt repo
+      run: scripts/setup_apt_repo_linux.sh
+    - name: collect versioned dependencies of apt packages
+      run: scripts/apt_depends.sh $LINUX_DPCPP_COMPONENTS | tee depends.txt
     - name: cache install
       id: cache-install
       uses: actions/cache@v2
@@ -38,23 +42,12 @@ jobs:
         path: |
           /opt/intel/oneapi/compiler
           /opt/intel/oneapi/tbb
-        key: install-${{ env.LINUX_BASEKIT_URL }}-${{ env.LINUX_DPCPP_COMPONENTS_WEB }}-compiler-tbb-${{ hashFiles('**/scripts/cache_exclude_linux.sh') }}
+        key: install-${{ env.LINUX_DPCPP_COMPONENTS }}-${{ hashFiles('**/depends.txt') }}-compiler-tbb-${{ hashFiles('**/scripts/cache_exclude_linux.sh') }}
     - name: install
       if: steps.cache-install.outputs.cache-hit != 'true'
-      run: scripts/install_linux.sh $LINUX_BASEKIT_URL $LINUX_DPCPP_COMPONENTS_WEB
+      run: scripts/install_linux_apt.sh $LINUX_DPCPP_COMPONENTS
     - name: build
-      run: build.sh
+      run: build
     - name: exclude unused files from cache
       if: steps.cache-install.outputs.cache-hit != 'true'
       run: scripts/cache_exclude_linux.sh
-
-    # Delete the following if you don't want to save install logs
-    - name: Saving install logs
-      if: steps.cache-install.outputs.cache-hit != 'true'
-      uses: actions/upload-artifact@v2
-      with:
-        name: InstallLogs_${{ github.job }}
-        path: |
-          bootstrapper*
-          installer*
-        retention-days: 7
