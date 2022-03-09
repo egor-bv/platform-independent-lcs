@@ -32,9 +32,9 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: setup apt repo
-      run: scripts/setup_apt_repo_linux.sh
+      run: sudo scripts/setup_apt_repo_linux.sh
     - name: collect versioned dependencies of apt packages
-      run: scripts/apt_depends.sh $LINUX_DPCPP_COMPONENTS | tee depends.txt
+      run: sudo scripts/apt_depends.sh $LINUX_DPCPP_COMPONENTS | tee depends.txt
     - name: cache install
       id: cache-install
       uses: actions/cache@v2
@@ -45,9 +45,9 @@ jobs:
         key: install-${{ env.LINUX_DPCPP_COMPONENTS }}-${{ hashFiles('**/depends.txt') }}-compiler-tbb-${{ hashFiles('**/scripts/cache_exclude_linux.sh') }}
     - name: install
       if: steps.cache-install.outputs.cache-hit != 'true'
-      run: scripts/install_linux_apt.sh $LINUX_DPCPP_COMPONENTS
+      run: sudo scripts/install_linux_apt.sh $LINUX_DPCPP_COMPONENTS
     - name: build
-      run: build
+      run: sudo build.sh
     - name: exclude unused files from cache
       if: steps.cache-install.outputs.cache-hit != 'true'
-      run: scripts/cache_exclude_linux.sh
+      run: sudo scripts/cache_exclude_linux.sh
