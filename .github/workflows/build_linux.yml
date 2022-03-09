@@ -53,7 +53,7 @@ jobs:
       if: steps.cache-install.outputs.cache-hit != 'true'
       run: scripts/install_linux_apt.sh $LINUX_DPCPP_COMPONENTS
     - name: build
-      run: build.sh
+      run: ./build.sh
     - name: exclude unused files from cache
       if: steps.cache-install.outputs.cache-hit != 'true'
       run: scripts/cache_exclude_linux.sh
