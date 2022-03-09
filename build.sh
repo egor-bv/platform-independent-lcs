@@ -1,5 +1,5 @@
 #!/bin/bash
-source /opt/intel/inteloneapi/setvars.sh
+source /opt/intel/oneapi/setvars.sh
 make clean
 make build
 
