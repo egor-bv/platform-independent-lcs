@@ -7,11 +7,11 @@
 #include <CL/sycl.hpp>
 
 
-template<int SG_SIZE, int TILE_M, int TILE_N, int TARGET_THREADS>
+template<int SG_SIZE, int TILE_M, int TILE_N, int BLOCK_MULTIPLE>
 PermutationMatrix SemiLcs_Tiled_Universal(sycl::queue &q, const InputSequencePair &given)
 {
 	// NOTE: to support smaller size needs different logic
-	static_assert(SG_SIZE == 16);
+	static_assert(SG_SIZE == 16 || SG_SIZE == 8);
 	constexpr int CACHELINE_ELEMENTS = 64 / sizeof(int);
 
 	int m = given.length_a;
@@ -81,9 +81,7 @@ PermutationMatrix SemiLcs_Tiled_Universal(sycl::queue &q, const InputSequencePai
 		sycl::buffer<int, 1> buf_v_strands(v_strands, alloc_n);
 
 		int BLOCK_M = SG_SIZE;
-		int block_even_width = region_n_padded / TARGET_THREADS;
-		int BLOCK_N = SmallestMultipleToFit(CACHELINE_ELEMENTS, block_even_width) * CACHELINE_ELEMENTS;
-		
+		int BLOCK_N = BLOCK_MULTIPLE * CACHELINE_ELEMENTS;
 		// NOTE: for now irregular remainder is skipped
 		int num_blocks_m = region_m_padded / BLOCK_M;
 		int num_blocks_n = region_n_padded / BLOCK_N;

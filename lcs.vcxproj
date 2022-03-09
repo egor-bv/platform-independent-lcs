@@ -153,6 +153,7 @@
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\compatible_performance_benchmark.hpp" />
     <ClInclude Include="src\semi_base_structure.hpp" />
     <ClInclude Include="src\semi_reference.hpp" />
     <ClInclude Include="src\semi_single_subgroup_antidiagonal.hpp" />

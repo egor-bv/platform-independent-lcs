@@ -12,43 +12,8 @@
 #include "testing_utility.hpp"
 
 
-sycl::queue *GLOBAL_QUEUE_CPU = nullptr;
-sycl::queue *GLOBAL_QUEUE_GPU = nullptr;
 
-sycl::queue &GetOrCreateQueue(std::string device_type)
-{
 
-	if (device_type == "gpu")
-	{
-		if (!GLOBAL_QUEUE_GPU)
-		{
-			GLOBAL_QUEUE_GPU = new sycl::queue(sycl::gpu_selector(), dpc_common::exception_handler);
-		}
-		return *GLOBAL_QUEUE_GPU;
-	}
-	else // by default use cpu queue
-	{
-		if (!GLOBAL_QUEUE_CPU)
-		{
-			GLOBAL_QUEUE_CPU = new sycl::queue(sycl::cpu_selector(), dpc_common::exception_handler);
-		}
-		return *GLOBAL_QUEUE_CPU;
-	}
-}
-
-void ShutdownQueues()
-{
-	if (GLOBAL_QUEUE_CPU)
-	{
-		delete GLOBAL_QUEUE_CPU;
-		GLOBAL_QUEUE_CPU = nullptr;
-	}
-	if (GLOBAL_QUEUE_GPU)
-	{
-		delete GLOBAL_QUEUE_GPU;
-		GLOBAL_QUEUE_GPU = nullptr;
-	}
-}
 
 template<class F>
 void RunBenchmark2(F func, int input_size, int num_iterations)
@@ -161,6 +126,19 @@ void RunBenchmarkCpu(std::string algo_name, int input_size, int num_iterations)
 	}
 }
 
+
+#define COMPATIBLE_TESTING_INTERFACE 1
+#if COMPATIBLE_TESTING_INTERFACE
+
+#include "compatible_performance_benchmark.hpp"
+
+int main(int argc, char **argv)
+{
+	RunSingleTest(std::string(argv[1]), std::string(argv[2]), std::string(argv[3]), std::string(argv[4]));
+	return 0;
+}
+
+#else
 int main(int argc, char **argv)
 {
 	int input_size = 32 * 1024;
@@ -201,22 +179,20 @@ int main(int argc, char **argv)
 	}
 #else
 	{
-		int size = 100000;
-		int num_iterations = 4;
+
 #define BENCHMARK(SG_SIZE, TILE_M, TILE_N, TARGET_THREADS) \
 		std::cout << SG_SIZE << " " << TILE_M << " " << TILE_N << " " << TARGET_THREADS << "\n";\
-	RunBenchmark2(SemiLcs_Tiled_Universal<SG_SIZE, TILE_M, TILE_N, TARGET_THREADS>, size, num_iterations);
+	RunBenchmark2(SemiLcs_Tiled_Universal<SG_SIZE, TILE_M, TILE_N, TARGET_THREADS>, input_size, num_iterations);
 
-		BENCHMARK(16, 16, 16, 15);
-		BENCHMARK(16, 8, 8, 15);
-		BENCHMARK(16, 7, 7, 15);
-		BENCHMARK(16, 6, 6, 15);
-		BENCHMARK(16, 5, 5, 15);
-		BENCHMARK(16, 4, 4, 15);
-		BENCHMARK(16, 3, 3, 15);
+		BENCHMARK(16, 1, 1, 16);
+		BENCHMARK(16, 2, 2, 16);
+		BENCHMARK(16, 4, 4, 16);
+		BENCHMARK(16, 8, 8, 16);
+
 	}
 #endif
 	ShutdownQueues();
 	return 0;
 }
 
+#endif
