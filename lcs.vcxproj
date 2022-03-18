@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -154,10 +154,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compatible_performance_benchmark.hpp" />
+    <ClInclude Include="src\factored_combing.hpp" />
+    <ClInclude Include="src\fpga_main.hpp" />
     <ClInclude Include="src\semi_base_structure.hpp" />
     <ClInclude Include="src\semi_reference.hpp" />
     <ClInclude Include="src\semi_single_subgroup_antidiagonal.hpp" />
     <ClInclude Include="src\semi_single_subgroup_staircase.hpp" />
+    <ClInclude Include="src\semi_single_task.hpp" />
     <ClInclude Include="src\semi_tiled.hpp" />
     <ClInclude Include="src\semi_tiled_universal.hpp" />
     <ClInclude Include="src\testing_utility.hpp" />

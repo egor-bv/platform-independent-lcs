@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <iomanip>
 
 int *LoadIntArrayFromFna(const char *filename, int *array_size)
 {
