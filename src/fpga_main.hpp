@@ -9,26 +9,6 @@
 #include "semi_lcs_types.hpp"
 #include "utility.hpp"
 
-static sycl::queue *FPGA_QUEUE_GLOBAL = nullptr;
-
-
-sycl::queue &GetSomeQueue()
-{
-	if (!FPGA_QUEUE_GLOBAL)
-	{
-#ifdef  REAL_FPGA
-		{
-			FPGA_QUEUE_GLOBAL = new sycl::queue(sycl::ext::intel::fpga_selector());
-		}
-#else
-		{
-			FPGA_QUEUE_GLOBAL = new sycl::queue(sycl::cpu_selector());
-		}
-#endif //  REAL_FPGA
-	}
-	return *FPGA_QUEUE_GLOBAL;
-}
-
 
 struct LcsProblem
 {
@@ -41,9 +21,35 @@ struct LcsProblem
 	int64_t perm_hash;
 };
 
+static sycl::queue *FPGA_QUEUE_GLOBAL = nullptr;
+static bool USE_FPGA = false;
+static bool USE_FPGA_EMULATOR = false;
+
+
+sycl::queue &GetFpgaQueue()
+{
+	if (!FPGA_QUEUE_GLOBAL)
+	{
+		if (USE_FPGA_EMULATOR)
+		{
+			FPGA_QUEUE_GLOBAL = new sycl::queue(sycl::ext::intel::fpga_emulator_selector());
+		}
+		else if (USE_FPGA)
+		{
+			FPGA_QUEUE_GLOBAL = new sycl::queue(sycl::ext::intel::fpga_selector());
+		}
+		else
+		{
+			FPGA_QUEUE_GLOBAL = new sycl::queue(sycl::cpu_selector());
+		}
+	}
+	return *FPGA_QUEUE_GLOBAL;
+}
+
+#if 0
 void semi_simple(LcsProblem &p)
 {
-	auto &q = GetSomeQueue();
+	auto &q = GetFpgaQueue();
 
 	int m = p.size_a;
 	int n = p.size_b;
@@ -119,12 +125,12 @@ void semi_simple(LcsProblem &p)
 
 	p.perm_hash = result.hash();
 }
+#endif
 
 
-#if 0
-void semi_blocks(LcsProblem &p)
+void semi_simple(LcsProblem &p)
 {
-	auto &q = GetSomeQueue();
+	auto &q = GetFpgaQueue();
 
 	int m = p.size_a;
 	int n = p.size_b;
@@ -141,13 +147,12 @@ void semi_blocks(LcsProblem &p)
 	for (int i = 0; i < m; ++i) h_strands_data[i] = i;
 	for (int j = 0; j < n; ++j) v_strands_data[j] = m + j;
 
-	constexpr int BLOCK_M = 32;
-	constexpr int BLOCK_N = 32;
+	constexpr int ROW_M_BITS = 5;
+	constexpr int ROW_M = 1 << ROW_M_BITS;
+	constexpr int ROW_M_MASK = ROW_M - 1;
 
+	int row_count = m / ROW_M;
 
-	int blocks_m = m / BLOCK_M;
-	int blocks_n = n / BLOCK_N;
-	int diag_count = blocks_m + blocks_n - 1;
 	{
 		sycl::buffer<int, 1> buf_a(a_data, m);
 		sycl::buffer<int, 1> buf_b(b_data, n);
@@ -163,28 +168,74 @@ void semi_blocks(LcsProblem &p)
 				auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
 
 				h.single_task([=]()
-					{
+					{	
 
-						for (int i_diag = 0; i_diag < diag_count; ++i_diag)
+						for (int row = row_count; row > 0; --row)
 						{
-							int i_first = i_diag < blocks_m ? i_diag : blocks_m - 1;
-							int j_first = i_diag < blocks_m ? 0 : i_diag - blocks_m + 1;
-							int diag_len = Min(i_first + 1, blocks_n - j_first);
-							int i_last = blocks_m - 1 - i_first;
+							int i_bottom = (row - 1) * ROW_M;
+							int Hs[ROW_M];
+							int Vs[ROW_M];
+						
+							int As[ROW_M];
+							int Bs[ROW_M];
 
-							for (int steps = 0; steps < diag_len; ++steps)
+							// load all h_strands in a row
+							for (int i = 0; i < ROW_M; ++i)
 							{
-								// actual grid coordinates
-								int i_block = i_last + steps;
-								int j_block = j_first + steps;
-
-								int a_loc[TILE_M];
-								int b_loc[TILE_N];
-								int h_loc[TILE_M];
-								int v_loc[TILE_N];
-
-								for(tile_m 
+								Hs[i] = h_strands[i_bottom + i];
 							}
+							
+							// load all symbols
+							for (int i = 0; i < ROW_M; ++i)
+							{
+								As[i] = a[i_bottom + i];
+							}
+
+							for (int horz_step = 1 - ROW_M; horz_step < n; ++horz_step)
+							{
+								// load another 
+								int j_right = horz_step + ROW_M - 1;
+								int j_left = horz_step;
+
+								if (j_right < n)
+								{
+									Vs[j_right & ROW_M_MASK] = v_strands[j_right];
+									Bs[j_right & ROW_M_MASK] = b[j_right];
+								}
+
+								#pragma unroll 4
+								[[intel::ivdep]]
+								for (int step = 0; step < ROW_M; ++step)
+								{
+									int i = i_bottom + step;
+									int j = j_left + step;
+
+									int ii = step;
+									int jj = j & ROW_M_MASK;
+
+									bool inside = 0 <= j && j < n;
+
+									int h = Hs[ii];
+									int v = Vs[jj];
+									bool need_swap = (As[ii] == Bs[jj] || h > v) && inside;
+
+									Hs[ii] = need_swap ? v : h;
+									Vs[jj] = need_swap ? h : v;
+								}
+
+								// store V
+								if (j_left >= 0)
+								{
+									v_strands[j_left] = Vs[j_left & ROW_M_MASK];
+								}
+							}
+
+							// store h_strands back
+							for (int i = 0; i < ROW_M; ++i)
+							{
+								h_strands[i_bottom + i] = Hs[i];
+							}
+								
 						}
 					}
 				);
@@ -202,49 +253,3 @@ void semi_blocks(LcsProblem &p)
 	p.perm_hash = result.hash();
 }
 
-#endif
-
-void process_cell(int a_sym, int b_sym, int &h, int &v)
-{
-	bool sym_equal = a_sym == b_sym;
-	bool has_crossing = h > v;
-	bool need_swap = sym_equal || has_crossing;
-	int new_h = need_swap ? v : h;
-	int new_v = need_swap ? h : v;
-	h = new_h;
-	v = new_v;
-}
-
-
-
-// using this to only compile a single kernel that works for fpga
-int fpga_main(int argc, char **argv)
-{
-
-	int input_size = 1024;
-	int num_iterations = 4;
-
-	auto example = ExampleInput(input_size, input_size);
-
-	auto &q = GetSomeQueue();
-	std::cout << "doing something...\n";
-	for (int iter = 0; iter < num_iterations; ++iter)
-	{
-		LcsProblem problem = {};
-		problem.input_a = example.a;
-		problem.input_b = example.b;
-		problem.size_a = example.length_a;
-		problem.size_b = example.length_b;
-
-		Stopwatch sw;
-		// do something
-
-		semi_simple(problem);
-
-		sw.stop();
-		double epus = double(problem.size_a) * double(problem.size_b) / sw.elapsed_ms() / 1000.0;
-		std::cout << epus << "c/us,   " << sw.elapsed_ms() << " ms,    hash=" << problem.perm_hash << "\n";
-
-	}
-	return 0;
-}

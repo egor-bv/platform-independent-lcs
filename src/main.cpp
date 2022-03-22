@@ -8,7 +8,7 @@
 #include "permutation.hpp"
 #include "utility.hpp"
 
-
+#include "fpga_main.hpp"
 
 
 std::vector<int> RandomBinarySequence(int size, uint32_t seed)
@@ -23,16 +23,9 @@ std::vector<int> RandomBinarySequence(int size, uint32_t seed)
 }
 
 
-struct LcsProblem
-{
-	const int *input_a;
-	const int *input_b;
-	int size_a;
-	int size_b;
 
-	int llcs;
-	int64_t perm_hash;
-};
+
+
 
 void semilocal_reference(LcsProblem &p)
 {
@@ -46,7 +39,7 @@ void semilocal_reference(LcsProblem &p)
 
 	for (int i = 0; i < m; ++i) a[i] = p.input_a[m - 1 - i];
 	for (int j = 0; j < n; ++j) b[j] = p.input_b[j];
-	
+
 	for (int i = 0; i < m; ++i) h_strands[i] = i;
 	for (int j = 0; j < n; ++j) v_strands[j] = m + j;
 
@@ -69,7 +62,7 @@ void semilocal_reference(LcsProblem &p)
 			bool sym_equal = a[i] == b[j];
 			bool has_crossing = h > v;
 			bool need_swap = sym_equal || has_crossing;
-			
+
 			h_strands[i] = need_swap ? v : h;
 			v_strands[j] = need_swap ? h : v;
 		}
@@ -93,19 +86,20 @@ struct TestSpec
 	std::string a_path;
 	std::string b_path;
 
-	int a_size = 102400;
-	int b_size = 102400;
+	int a_size = 1024;
+	int b_size = 1024;
 
 	int num_iter = 4;
 
 	std::string algo_name;
-	
+
 	bool verbose = true;
 	bool validate = true;
 
 	uint32_t random_seed = 1;
 
-	void Execute()
+	template <typename F>
+	void Execute(F proc)
 	{
 		std::vector<int> a = RandomBinarySequence(a_size, random_seed);
 		std::vector<int> b = RandomBinarySequence(b_size, ~random_seed);
@@ -116,23 +110,29 @@ struct TestSpec
 			printf("(%d * %d = %lld)\n", a_size, b_size, total_size);
 		}
 
-		// reference: run once...
 
+		LcsProblem p;
+		p.input_a = &a[0];
+		p.input_b = &b[0];
+		p.size_a = a.size();
+		p.size_b = b.size();
+
+		// reference: run once...
+		Stopwatch sw_ref;
+		semilocal_reference(p);
+		sw_ref.stop();
+		printf("REF: %10.2f c/us,    # %lld\n", total_size / sw_ref.elapsed_ms() / 1000.0, p.perm_hash);
+		
 		for (int iter = 0; iter < num_iter; ++iter)
 		{
-			LcsProblem p;
-			p.input_a = &a[0];
-			p.input_b = &b[0];
-			p.size_a = a.size();
-			p.size_b = b.size();
+
 
 			Stopwatch sw;
-			// run algo f(p)
-			semilocal_reference(p);
+			proc(p);
 			sw.stop();
 
-			double cells_per_us = total_size / sw.elapsed_ms() / 1000.0; 
-			printf("%f c/us;   %lld\n", cells_per_us, p.perm_hash);
+			double cells_per_us = total_size / sw.elapsed_ms() / 1000.0;
+			printf("[%d]: %10.2f c/us,    # %lld\n", iter, cells_per_us, p.perm_hash);
 
 			// validate
 			// print results
@@ -146,7 +146,24 @@ struct TestSpec
 
 int main(int argc, char **argv)
 {
+	bool use_fpga = false;
+	int input_size = 1024;
+
+	if (argc >= 1 && argv[1])
+	{
+		use_fpga = argv[1][0] == 'f';
+	}
+	if (argc >= 2 && argv[2])
+	{
+		input_size = atoi(argv[2]);
+	}
+
+	USE_FPGA = use_fpga;
 	TestSpec spec;
-	spec.Execute();
+
+	spec.a_size = input_size;
+	spec.b_size = input_size;
+
+	spec.Execute(semi_simple);
 	return 0;
 }
