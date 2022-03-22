@@ -168,24 +168,30 @@ void semi_simple(LcsProblem &p)
 				auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
 
 				h.single_task([=]()
-					{	
+					{
 
 						for (int row = row_count; row > 0; --row)
 						{
 							int i_bottom = (row - 1) * ROW_M;
+
+							// local registers
 							int Hs[ROW_M];
-							int Vs[ROW_M];
-						
 							int As[ROW_M];
+
+							// shift register
+							int Vs[ROW_M];
 							int Bs[ROW_M];
 
-							// load all h_strands in a row
+
+							#pragma unroll
+							[[intel::ivdep]]
 							for (int i = 0; i < ROW_M; ++i)
 							{
 								Hs[i] = h_strands[i_bottom + i];
 							}
-							
-							// load all symbols
+
+							#pragma unroll
+							[[intel::ivdep]]
 							for (int i = 0; i < ROW_M; ++i)
 							{
 								As[i] = a[i_bottom + i];
@@ -199,11 +205,11 @@ void semi_simple(LcsProblem &p)
 
 								if (j_right < n)
 								{
-									Vs[j_right & ROW_M_MASK] = v_strands[j_right];
-									Bs[j_right & ROW_M_MASK] = b[j_right];
+									Vs[ROW_M - 1] = v_strands[j_right];
+									Bs[ROW_M - 1] = b[j_right];
 								}
 
-								#pragma unroll 4
+								#pragma unroll
 								[[intel::ivdep]]
 								for (int step = 0; step < ROW_M; ++step)
 								{
@@ -211,7 +217,7 @@ void semi_simple(LcsProblem &p)
 									int j = j_left + step;
 
 									int ii = step;
-									int jj = j & ROW_M_MASK;
+									int jj = step;
 
 									bool inside = 0 <= j && j < n;
 
@@ -226,16 +232,25 @@ void semi_simple(LcsProblem &p)
 								// store V
 								if (j_left >= 0)
 								{
-									v_strands[j_left] = Vs[j_left & ROW_M_MASK];
+									v_strands[j_left] = Vs[0];
+								}
+
+								// shift register
+								#pragma unroll
+								for (int jj = 0; jj < ROW_M - 1; ++jj)
+								{
+									Vs[jj] = Vs[jj + 1];
+									Bs[jj] = Bs[jj + 1];
 								}
 							}
 
 							// store h_strands back
+							#pragma unroll
 							for (int i = 0; i < ROW_M; ++i)
 							{
 								h_strands[i_bottom + i] = Hs[i];
 							}
-								
+
 						}
 					}
 				);
