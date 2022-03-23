@@ -152,11 +152,10 @@ void semi_simple(LcsProblem &p)
 	for (int i = 0; i < m; ++i) h_strands_data[i] = i;
 	for (int j = 0; j < n; ++j) v_strands_data[j] = m + j;
 
-	constexpr int ROW_M_BITS = 7;
-	constexpr int ROW_M = 1 << ROW_M_BITS;
-	constexpr int ROW_M_MASK = ROW_M - 1;
+	constexpr int ROW_M = 128;
 
-	int row_count = m / ROW_M;
+
+	int row_count = SmallestMultipleToFit(ROW_M, m);
 
 	{
 		sycl::buffer<int, 1> buf_a(a_data, m);
@@ -175,9 +174,9 @@ void semi_simple(LcsProblem &p)
 				h.single_task([=]()
 					{
 
-						for (int row = row_count; row > 0; --row)
+						for (int row = 0; row < row_count; ++row)
 						{
-							int i_bottom = (row - 1) * ROW_M;
+							int i_bottom = (row_count - row - 1) * ROW_M;
 
 							// local registers
 							int Hs[ROW_M];
@@ -224,7 +223,7 @@ void semi_simple(LcsProblem &p)
 									int ii = step;
 									int jj = step;
 
-									bool inside = 0 <= j && j < n;
+									bool inside = 0 <= j && j < n && i >= 0;
 
 									int h = Hs[ii];
 									int v = Vs[jj];

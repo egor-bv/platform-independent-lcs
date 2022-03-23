@@ -163,7 +163,7 @@ int main(int argc, char **argv)
 
 	printf("Creating queue...\n");
 	auto &q = GetFpgaQueue();
-	printF("Successful!\n\n");
+	printf("Successful!\n\n");
 
 	spec.a_size = input_size;
 	spec.b_size = input_size;
