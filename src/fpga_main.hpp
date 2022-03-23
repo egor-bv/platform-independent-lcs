@@ -46,6 +46,11 @@ sycl::queue &GetFpgaQueue()
 	return *FPGA_QUEUE_GLOBAL;
 }
 
+void ShutdownFpgaQueue()
+{
+	if (FPGA_QUEUE_GLOBAL) delete FPGA_QUEUE_GLOBAL;
+}
+
 #if 0
 void semi_simple(LcsProblem &p)
 {
@@ -147,7 +152,7 @@ void semi_simple(LcsProblem &p)
 	for (int i = 0; i < m; ++i) h_strands_data[i] = i;
 	for (int j = 0; j < n; ++j) v_strands_data[j] = m + j;
 
-	constexpr int ROW_M_BITS = 5;
+	constexpr int ROW_M_BITS = 7;
 	constexpr int ROW_M = 1 << ROW_M_BITS;
 	constexpr int ROW_M_MASK = ROW_M - 1;
 

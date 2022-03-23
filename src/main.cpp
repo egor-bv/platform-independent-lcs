@@ -161,9 +161,15 @@ int main(int argc, char **argv)
 	USE_FPGA = use_fpga;
 	TestSpec spec;
 
+	printf("Creating queue...\n");
+	auto &q = GetFpgaQueue();
+	printF("Successful!\n\n");
+
 	spec.a_size = input_size;
 	spec.b_size = input_size;
 
 	spec.Execute(semi_simple);
+
+	ShutdownFpgaQueue();
 	return 0;
 }
