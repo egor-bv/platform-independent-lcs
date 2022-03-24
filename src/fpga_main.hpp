@@ -10,6 +10,17 @@
 #include "utility.hpp"
 
 
+#ifndef GLOBAL_WINDOW_SIZE
+#define GLOBAL_WINDOW_SIZE 32
+#endif
+
+#if FPGA
+#define TASK_ATTRIBUTES [[intel::kernel_args_restrict]]
+#else
+#define TASK_ATTRIBUTES
+#endif
+
+
 struct LcsProblem
 {
 	const int *input_a;
@@ -133,6 +144,8 @@ void semi_simple(LcsProblem &p)
 #endif
 
 
+
+#if 0
 void semi_simple(LcsProblem &p)
 {
 	auto &q = GetFpgaQueue();
@@ -152,7 +165,7 @@ void semi_simple(LcsProblem &p)
 	for (int i = 0; i < m; ++i) h_strands_data[i] = i;
 	for (int j = 0; j < n; ++j) v_strands_data[j] = m + j;
 
-	constexpr int ROW_M = 128;
+	constexpr int ROW_M = GLOBAL_WINDOW_SIZE;
 
 
 	int row_count = SmallestMultipleToFit(ROW_M, m);
@@ -223,7 +236,7 @@ void semi_simple(LcsProblem &p)
 									int ii = step;
 									int jj = step;
 
-									bool inside = 0 <= j && j < n && i >= 0;
+									bool inside = 0 <= j && j < n &&i >= 0;
 
 									int h = Hs[ii];
 									int v = Vs[jj];
@@ -255,6 +268,114 @@ void semi_simple(LcsProblem &p)
 								h_strands[i_bottom + i] = Hs[i];
 							}
 
+						}
+					}
+				);
+			}
+		);
+	}
+
+	PermutationMatrix result = PermutationMatrix::FromStrands(h_strands_data, m, v_strands_data, n);
+
+	delete[] a_data;
+	delete[] b_data;
+	delete[] h_strands_data;
+	delete[] v_strands_data;
+
+	p.perm_hash = result.hash();
+}
+#endif
+
+// NOTE: just make a normal swap
+template<typename T>
+inline void semi_swap(T &x, T &y)
+{
+	T old_x = x;
+	x = y;
+	y = old_x;
+}
+
+inline void semi_process_cell(int A, int B, int &H, int &V)
+{
+	bool has_match = A == B;
+	bool has_crossing = H > V;
+	bool need_swap = has_match || has_crossing;
+	if (need_swap) semi_swap(H, V);
+}
+
+void semi_simple(LcsProblem &p)
+{
+	auto &q = GetFpgaQueue();
+
+	int m = p.size_a;
+	int n = p.size_b;
+
+	int *a_data = new int[m];
+	int *b_data = new int[n];
+
+	int *h_strands_data = new int[m];
+	int *v_strands_data = new int[n];
+
+	for (int i = 0; i < m; ++i) a_data[i] = p.input_a[m - i - 1];
+	for (int j = 0; j < n; ++j) b_data[j] = p.input_b[j];
+
+	for (int i = 0; i < m; ++i) h_strands_data[i] = i;
+	for (int j = 0; j < n; ++j) v_strands_data[j] = m + j;
+
+	constexpr int ROW_M = GLOBAL_WINDOW_SIZE;
+	// int row_count = SmallestMultipleToFit(ROW_M, m);
+	int row_count = m / ROW_M;
+
+	{
+		sycl::buffer<int, 1> buf_a(a_data, m);
+		sycl::buffer<int, 1> buf_b(b_data, n);
+		sycl::buffer<int, 1> buf_h_strands(h_strands_data, m);
+		sycl::buffer<int, 1> buf_v_strands(v_strands_data, n);
+
+
+		q.submit([&](auto &h)
+			{
+				auto a = buf_a.get_access<sycl::access::mode::read>(h);
+				auto b = buf_b.get_access<sycl::access::mode::read>(h);
+				auto h_strands = buf_h_strands.get_access<sycl::access::mode::read_write>(h);
+				auto v_strands = buf_v_strands.get_access<sycl::access::mode::read_write>(h);
+
+				h.single_task([=]() TASK_ATTRIBUTES
+					{
+						for (int i_bottom = m - ROW_M; i_bottom >= 0; i_bottom -= ROW_M)
+						{
+							// load everything from the left
+							int Hs[ROW_M];
+							int As[ROW_M];
+							
+							#pragma unroll
+							for (int ii = 0; ii < ROW_M; ++ii)
+							{
+								Hs[ii] = h_strands[i_bottom + ii];
+								As[ii] = a[i_bottom + ii];
+							}
+
+							[[intel::ivdep]]
+							for (int j = 0; j < n; ++j)
+							{
+								int V = v_strands[j];
+								int B = b[j];
+
+								#pragma unroll
+								for (int ii = ROW_M - 1; ii >= 0; --ii)
+								{
+									semi_process_cell(As[ii], B, Hs[ii], V);
+								}
+
+								v_strands[j] = V;
+							}
+
+							// store it back
+							#pragma unroll
+							for (int ii = 0; ii < ROW_M; ++ii)
+							{
+								h_strands[i_bottom + ii] = Hs[ii];
+							}
 						}
 					}
 				);
