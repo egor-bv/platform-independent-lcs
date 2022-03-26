@@ -153,7 +153,6 @@
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="argument_parser.hpp" />
     <ClInclude Include="src\compatible_performance_benchmark.hpp" />
     <ClInclude Include="src\factored_combing.hpp" />
     <ClInclude Include="src\fpga_main.hpp" />
