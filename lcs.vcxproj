@@ -150,24 +150,21 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\lcs_impl.cpp" />
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\compatible_performance_benchmark.hpp" />
-    <ClInclude Include="src\factored_combing.hpp" />
-    <ClInclude Include="src\fpga_main.hpp" />
-    <ClInclude Include="src\semi_base_structure.hpp" />
-    <ClInclude Include="src\semi_reference.hpp" />
-    <ClInclude Include="src\semi_single_subgroup_antidiagonal.hpp" />
-    <ClInclude Include="src\semi_single_subgroup_staircase.hpp" />
-    <ClInclude Include="src\semi_single_task.hpp" />
-    <ClInclude Include="src\semi_tiled.hpp" />
-    <ClInclude Include="src\semi_tiled_universal.hpp" />
-    <ClInclude Include="src\testing_utility.hpp" />
-    <ClInclude Include="src\semi_lcs_types.hpp" />
-    <ClInclude Include="src\permutation.hpp" />
-    <ClInclude Include="src\semi_lcs_api.hpp" />
-    <ClInclude Include="src\stopwatch.hpp" />
+    <ClInclude Include="src\lcs_antidiagonal.hpp" />
+    <ClInclude Include="src\lcs_common.hpp" />
+    <ClInclude Include="src\lcs_reference.hpp" />
+    <ClInclude Include="src\lcs_registry.hpp" />
+    <ClInclude Include="src\lcs_types.hpp" />
+    <ClInclude Include="src\lcs_validation.hpp" />
+    <ClInclude Include="src\test_argument_parser.hpp" />
+    <ClInclude Include="src\test_fna_parser.hpp" />
+    <ClInclude Include="src\test_queue.hpp" />
+    <ClInclude Include="src\test_spec.hpp" />
+    <ClInclude Include="src\test_utility.hpp" />
     <ClInclude Include="src\utility.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
