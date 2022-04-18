@@ -27,8 +27,13 @@ struct LcsContext
 
 	sycl::queue *queue;
 	
-	uint32_t m;
-	uint32_t n;
+	int m;
+	int n;
+
+	int tile_m;
+	int tile_n;
+	int allocated_m;
+	int allocated_n;
 
 	// want to keep this unsigned
 	Symbol *a;
@@ -46,9 +51,9 @@ struct LcsContext
 	Index *diag0;
 	Index *diag1;
 	Index *diag2;
-	uint32_t diag_len;
+	int diag_len;
 
-	uint32_t llcs;
+	int llcs;
 
 	LcsContext() = default;
 
@@ -61,6 +66,17 @@ struct LcsContext
 		}
 		auto result = LcsContext();
 		result.queue = CPU_QUEUE;
+		return result;
+	}
+
+	static LcsContext Gpu()
+	{
+		if (!GPU_QUEUE)
+		{
+			GPU_QUEUE = new sycl::queue(sycl::gpu_selector());
+		}
+		auto result = LcsContext();
+		result.queue = GPU_QUEUE;
 		return result;
 	}
 

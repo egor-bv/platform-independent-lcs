@@ -29,5 +29,11 @@ inline bool IsMultipleOf(uint32_t x, uint32_t m)
 	return x == ((x / m) * m);
 }
 
+inline int SmallestMultipleToFit(int at_least, int multiple_of)
+{
+	int result = (at_least + multiple_of - 1) / multiple_of;
+	return result;
+}
+
 
 #define Assert(x) assert(x)

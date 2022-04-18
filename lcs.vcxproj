@@ -156,8 +156,13 @@
   <ItemGroup>
     <ClInclude Include="src\lcs_antidiagonal.hpp" />
     <ClInclude Include="src\lcs_common.hpp" />
+    <ClInclude Include="src\lcs_grid.hpp" />
+    <ClInclude Include="src\lcs_hybrid.hpp" />
     <ClInclude Include="src\lcs_reference.hpp" />
     <ClInclude Include="src\lcs_registry.hpp" />
+    <ClInclude Include="src\lcs_stairs.hpp" />
+    <ClInclude Include="src\lcs_subproblems.hpp" />
+    <ClInclude Include="src\lcs_tiled.hpp" />
     <ClInclude Include="src\lcs_types.hpp" />
     <ClInclude Include="src\lcs_validation.hpp" />
     <ClInclude Include="src\test_argument_parser.hpp" />

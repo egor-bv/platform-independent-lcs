@@ -46,6 +46,19 @@ void InitStrands(LcsContext &ctx)
 	}
 }
 
+template<int TILE_M, int TILE_N>
+void InitDeinterleaved(LcsInput &input, LcsContext &ctx)
+{
+	Assert(!ctx.a);
+	Assert(!ctx.b);
+	Assert(!ctx.h_strands);
+	Assert(!ctx.v_strands);
+
+	int m = input.size_a;
+	int n = input.size_b;
+}
+
+
 
 void InitInputsPrefix(LcsInput &input, LcsContext &ctx)
 {
@@ -72,6 +85,7 @@ void InitInputsPrefix(LcsInput &input, LcsContext &ctx)
 		Swap(ctx.a, ctx.b);
 	}
 }
+
 
 
 void InitDiagsPrefix(LcsContext &ctx)
@@ -143,13 +157,13 @@ void InitStrandsPrefixBinary(LcsContext &ctx)
 	Assert(!ctx.v_strands);
 
 	ctx.is_prefix = true;
-	ctx.h_strands = new uint32_t[ctx.num_h_strands()];
+	ctx.h_strands = new LcsContext::Index[ctx.num_h_strands()];
 	for (int i = 0; i < ctx.num_h_strands(); ++i)
 	{
 		ctx.h_strands[i] = -1;
 	}
 
-	ctx.v_strands = new uint32_t[ctx.num_v_strands()];
+	ctx.v_strands = new LcsContext::Index[ctx.num_v_strands()];
 	for (int j = 0; j < ctx.num_v_strands(); ++j)
 	{
 		ctx.v_strands[j] = 0;
