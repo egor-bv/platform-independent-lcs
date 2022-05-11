@@ -24,10 +24,6 @@ inline void Swap(T &x, T &y)
 	y = tmp;
 }
 
-inline bool IsMultipleOf(uint32_t x, uint32_t m)
-{
-	return x == ((x / m) * m);
-}
 
 inline int SmallestMultipleToFit(int at_least, int multiple_of)
 {
@@ -35,5 +31,10 @@ inline int SmallestMultipleToFit(int at_least, int multiple_of)
 	return result;
 }
 
+inline int CeilDiv(int x, int y)
+{
+	int result = x / y + int(x % y != 0);
+	return result;
+}
 
 #define Assert(x) assert(x)

@@ -3,10 +3,7 @@
 #include <vector>
 #include <random>
 
-#include "lcs_types.hpp"
-
-
-std::vector<int> RandomBinarySequence(int size, int seed)
+std::vector<int> generate_random_binary_sequence(int size, int seed)
 {
 	std::vector<int> result(size);
 	std::mt19937 rng(seed);
@@ -19,7 +16,7 @@ std::vector<int> RandomBinarySequence(int size, int seed)
 	return result;
 }
 
-std::vector<int> RandomSequence(int size, int range, int seed)
+std::vector<int> generate_random_uniform_sequence(int size, int range, int seed)
 {
 	std::vector<int> result(size);
 	std::mt19937 rng(seed);

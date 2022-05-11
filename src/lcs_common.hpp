@@ -1,172 +1,328 @@
 #pragma once
-// common types and functions used by LCS implementations
+// Common types and functions used by LCS implementations
 
 #include "lcs_types.hpp"
-#include "utility.hpp"
 
-// copy input sequences, reversing the first one
-void InitInputs(LcsInput &input, LcsContext &ctx)
+template<typename Symbols, typename Strands>
+void
+update_cell_semilocal(Symbols a, Symbols b, Strands h_strands, Strands v_strands, int i, int j)
 {
-	Assert(!ctx.a);
-	Assert(!ctx.b);
+	auto a_sym = a[i];
+	auto b_sym = b[j];
+	auto h_strand = h_strands[i];
+	auto v_strand = v_strands[j];
 
-	ctx.m = input.size_a;
-	ctx.a = new LcsContext::Symbol[ctx.m];
-	for (int i = 0; i < ctx.m; ++i)
-	{
-		ctx.a[i] = input.seq_a[ctx.m - i - 1];
-	}
+	bool has_match = a_sym == b_sym;
+	bool has_crossing = h_strand > v_strand;
+	bool need_swap = has_match || has_crossing;
 
-	ctx.n = input.size_b;
-	ctx.b = new LcsContext::Symbol[ctx.n];
-	for (int j = 0; j < ctx.n; ++j)
-	{
-		ctx.b[j] = input.seq_b[j];
-	}
+	h_strands[i] = need_swap ? v_strand : h_strand;
+	v_strands[j] = need_swap ? h_strand : v_strand;
 }
 
 
-// init strand indices, must be called after InitInputs()
-void InitStrands(LcsContext &ctx)
+
+// TODO
+class SemilocalCellProcess
 {
-	Assert(!ctx.h_strands);
-	Assert(!ctx.v_strands);
-
-	ctx.is_prefix = false;
-	ctx.h_strands = new LcsContext::Index[ctx.num_h_strands()];
-	for (int i = 0; i < ctx.num_h_strands(); ++i)
+public:
+	template<typename Symbols, typename Strands>
+	static void UpdateCell(Symbols a, Symbols b,
+		Strands h_strands, Strands v_strands, int i, int j)
 	{
-		ctx.h_strands[i] = i;
 	}
+};
 
-	ctx.v_strands = new LcsContext::Index[ctx.num_v_strands()];
-	for (int j = 0; j < ctx.num_v_strands(); ++j)
+
+class BinaryPrefixProcess
+{
+public:
+	template<typename Symbols, typename Strands>
+	static void UpdateCell(Symbols a, Symbols b,
+		Strands h_strands, Strands v_strands, int i, int j)
 	{
-		ctx.v_strands[j] = ctx.num_h_strands() + j;
 	}
-}
+};
+
 
 template<int TILE_M, int TILE_N>
-void InitDeinterleaved(LcsInput &input, LcsContext &ctx)
+struct TiledCache
 {
-	Assert(!ctx.a);
-	Assert(!ctx.b);
-	Assert(!ctx.h_strands);
-	Assert(!ctx.v_strands);
-
-	int m = input.size_a;
-	int n = input.size_b;
-}
+	int a[TILE_M];
+	int h_strands[TILE_M];
+};
 
 
-
-void InitInputsPrefix(LcsInput &input, LcsContext &ctx)
+template<int TILE_M, int TILE_N, typename Symbols, typename Strands>
+inline void
+update_cell_tile_semilocal(TiledCache<TILE_M, TILE_N> &cache,
+	Symbols a, Symbols b, Strands h_strands, Strands v_strands,
+	int i_stride, int j_stride,
+	int i_low, int j_low)
 {
-	Assert(!ctx.a);
-	Assert(!ctx.b);
-
-	ctx.m = input.size_a;
-	ctx.a = new LcsContext::Symbol[ctx.m];
-	for (int i = 0; i < ctx.m; ++i)
+	// a, h_strands are unused
+	for (int jj = 0; jj < TILE_N; ++jj)
 	{
-		ctx.a[i] = input.seq_a[ctx.m - i - 1];
-	}
+		auto v_strand = v_strands[j_low + j_stride * jj];
+		auto b_sym = b[j_low + j_stride * jj];
 
-	ctx.n = input.size_b;
-	ctx.b = new LcsContext::Symbol[ctx.n];
-	for (int j = 0; j < ctx.n; ++j)
-	{
-		ctx.b[j] = input.seq_b[j];
-	}
-
-	if (ctx.m > ctx.n)
-	{
-		Swap(ctx.m, ctx.n);
-		Swap(ctx.a, ctx.b);
-	}
-}
-
-
-
-void InitDiagsPrefix(LcsContext &ctx)
-{
-	Assert(!ctx.diag0);
-	Assert(!ctx.diag1);
-	Assert(!ctx.diag2);
-
-	ctx.is_prefix = true;
-	LcsContext::Index diag_max_len = Min(ctx.n, ctx.m) + 1;
-
-	ctx.diag_len = diag_max_len;
-	// init diagonals to zero
-	ctx.diag0 = new LcsContext::Index[diag_max_len]{};
-	ctx.diag1 = new LcsContext::Index[diag_max_len]{};
-	ctx.diag2 = new LcsContext::Index[diag_max_len]{};
-}
-
-
-// binary
-void InitInputsPrefixBinary(LcsInput &input, LcsContext &ctx)
-{
-	static_assert(std::is_same<LcsContext::Index, uint32_t>::value, "Bad type");
-	static_assert(std::is_same<LcsContext::Index, uint32_t>::value, "Bad type");
-
-	Assert(!ctx.a);
-	Assert(!ctx.b);
-
-	Assert(IsMultipleOf(input.size_a, 32));
-	Assert(IsMultipleOf(input.size_b, 32));
-
-	ctx.m = input.size_a / 32;
-	ctx.a = new LcsContext::Symbol[ctx.m];
-
-	ctx.n = input.size_b / 32;
-	ctx.b = new LcsContext::Symbol[ctx.n];
-
-	for (int i = 0; i < ctx.m; ++i)
-	{
-		uint32_t packed = 0;
-		for (int step = 0; step < 32; ++step)
+		#pragma unroll
+		for (int ii = TILE_M - 1; ii >= 0; --ii)
 		{
-			uint32_t src = input.seq_a[input.size_a - 1 - (32 * i + step)];
-			Assert(src == 0 || src == 1);
+			auto h_strand = cache.h_strands[ii];
 
-			// packed = (packed << 1) | src;
-			packed = packed | (src << step);
-		}
-		ctx.a[i] = packed;
-	}
+			bool has_match = cache.a[ii] == b_sym;
+			bool has_crossing = h_strand > v_strand;
+			bool need_swap = has_match || has_crossing;
 
-	for (int j = 0; j < ctx.n; ++j)
-	{
-		uint32_t packed = 0;
-		for (int step = 0; step < 32; ++step)
-		{
-			uint32_t src = input.seq_b[32 * j + step];
-			Assert(src == 0 || src == 1);
-			packed = packed | (src << step);
-			// packed = (packed << 1) | src;
+			cache.h_strands[ii] = need_swap ? v_strand : h_strand;
+			v_strand = need_swap ? h_strand : v_strand;
 		}
-		ctx.b[j] = packed;
+
+		v_strands[j_low + j_stride * jj] = v_strand;
 	}
 }
 
-void InitStrandsPrefixBinary(LcsContext &ctx)
-{
-	Assert(!ctx.h_strands);
-	Assert(!ctx.v_strands);
 
-	ctx.is_prefix = true;
-	ctx.h_strands = new LcsContext::Index[ctx.num_h_strands()];
-	for (int i = 0; i < ctx.num_h_strands(); ++i)
+template<int TILE_M, int TILE_N, typename Symbols, typename Strands>
+inline void
+update_cell_tile_limit_semilocal(TiledCache<TILE_M, TILE_N> &cache,
+	Symbols a, Symbols b, Strands h_strands, Strands v_strands,
+	int i_stride, int j_stride,
+	int i_low, int j_low, int ii_limit, int jj_limit)
+{
+	// a, h_strands are unused
+	for (int jj = 0; jj < jj_limit; ++jj)
 	{
-		ctx.h_strands[i] = -1;
+		auto v_strand = v_strands[j_low + j_stride * jj];
+		auto b_sym = b[j_low + j_stride * jj];
+
+		for (int ii = ii_limit - 1; ii >= 0; --ii)
+		{
+			auto h_strand = cache.h_strands[ii];
+
+			bool has_match = cache.a[ii] == b_sym;
+			bool has_crossing = h_strand > v_strand;
+			bool need_swap = has_match || has_crossing;
+
+			cache.h_strands[ii] = need_swap ? v_strand : h_strand;
+			v_strand = need_swap ? h_strand : v_strand;
+		}
+
+		v_strands[j_low + j_stride * jj] = v_strand;
+	}
+}
+
+
+
+// Striped iteration abstraction
+
+template<int SG_SIZE, typename Functor0, typename Functor1>
+inline void
+stripe_iterate(Functor0 functor_complete, Functor1 functor_incomplete, sycl::sub_group sg,
+	int i0, int left_border, int right_border)
+{
+	int sg_id = sg.get_local_linear_id();
+	int i = i0 + sg_id;
+
+	// Make it so right part is the only part when width is small
+	int left_part_first = left_border - SG_SIZE + 1;
+	int right_part_first = right_border < SG_SIZE ? left_part_first : Max(0, right_border - SG_SIZE);
+	int left_part_end = Min(0, right_part_first);
+
+	for (int j0 = left_part_first; j0 < left_part_end; ++j0)
+	{
+		int j = j0 + sg_id;
+		if (j >= left_border && j < right_border)
+		{
+			functor_complete(i, j);
+		}
+		sg.barrier();
 	}
 
-	ctx.v_strands = new LcsContext::Index[ctx.num_v_strands()];
-	for (int j = 0; j < ctx.num_v_strands(); ++j)
+	for (int j0 = 0; j0 < right_part_first; ++j0)
 	{
-		ctx.v_strands[j] = 0;
+		int j = j0 + sg_id;
+		{
+			functor_complete(i, j);
+		}
+		sg.barrier();
+	}
+
+	for (int j0 = right_part_first; j0 < right_border; ++j0)
+	{
+		int j = j0 + sg_id;
+		if (j >= left_border && j < right_border)
+		{
+			functor_incomplete(i, j);
+		}
+		sg.barrier();
+	}
+	sg.barrier();
+
+}
+
+template<int SG_SIZE, typename Functor, typename Predicate>
+inline void
+stripe_iterate_with_predicate(Functor functor, Predicate pred, sycl::sub_group sg,
+	int i0, int left_border, int right_border)
+{
+	int sg_id = sg.get_local_linear_id();
+	int i = i0 + sg_id;
+
+	// Make it so right part is the only part when width is small
+	int left_part_first = left_border - SG_SIZE + 1;
+	int right_part_first = right_border < SG_SIZE ? left_part_first : Max(0, right_border - SG_SIZE);
+	int left_part_end = Min(0, right_part_first);
+
+	for (int j0 = left_part_first; j0 < left_part_end; ++j0)
+	{
+		int j = j0 + sg_id;
+		if (j >= left_border && j < right_border && pred(i, j))
+		{
+			functor(i, j);
+		}
+		sg.barrier();
+	}
+
+	for (int j0 = 0; j0 < right_part_first; ++j0)
+	{
+		int j = j0 + sg_id;
+		if (pred(i, j))
+		{
+			functor(i, j);
+		}
+		sg.barrier();
+	}
+
+	for (int j0 = right_part_first; j0 < right_border; ++j0)
+	{
+		int j = j0 + sg_id;
+		if (j >= left_border && j < right_border && pred(i, j))
+		{
+			functor(i, j);
+		}
+		sg.barrier();
+	}
+	sg.barrier();
+
+}
+
+
+
+template<int SG_SIZE, typename Functor>
+inline void
+update_stripe(Functor functor, sycl::sub_group sg,
+	int i0, int left_border, int right_border)
+{
+	int sg_id = sg.get_local_linear_id();
+	int i = i0 + sg_id;
+
+	// Make it so right part is the only part when width is small
+	int left_part_first = left_border - SG_SIZE + 1;
+	int right_part_first = right_border < SG_SIZE ? left_part_first : Max(left_border, right_border - SG_SIZE);
+	int left_part_end = Min(left_border, right_part_first);
+
+	for (int j0 = left_part_first; j0 < left_part_end; ++j0)
+	{
+		int j = j0 + sg_id;
+		if (j >= left_border && j < right_border)
+		{
+			functor(i, j);
+		}
+		sg.barrier();
+	}
+
+	for (int j0 = left_part_end; j0 < right_part_first; ++j0)
+	{
+		int j = j0 + sg_id;
+		{
+			functor(i, j);
+		}
+		sg.barrier();
+	}
+
+	for (int j0 = right_part_first; j0 < right_border; ++j0)
+	{
+		int j = j0 + sg_id;
+		if (j >= left_border && j < right_border)
+		{
+			functor(i, j);
+		}
+		sg.barrier();
+	}
+
+	sg.barrier();
+}
+
+
+template<int SG_SIZE, typename Functor, typename Predicate>
+inline void
+update_stripe_with_predicate(Functor functor, Predicate pred, sycl::sub_group sg,
+	int i0, int left_border, int right_border)
+{
+	int sg_id = sg.get_local_linear_id();
+	int i = i0 + sg_id;
+
+	// Make it so right part is the only part when width is small
+	int left_part_first = left_border - SG_SIZE + 1;
+	int right_part_first = right_border < SG_SIZE ? left_part_first : Max(0, right_border - SG_SIZE);
+	int left_part_end = Min(0, right_part_first);
+
+	for (int j0 = left_part_first; j0 < left_part_end; ++j0)
+	{
+		int j = j0 + sg_id;
+		if (j >= left_border && j < right_border && pred(i, j))
+		{
+			functor(i, j);
+		}
+		sg.barrier();
+	}
+
+	for (int j0 = 0; j0 < right_part_first; ++j0)
+	{
+		int j = j0 + sg_id;
+		if (pred(i, j))
+		{
+			functor(i, j);
+		}
+		sg.barrier();
+	}
+
+	for (int j0 = right_part_first; j0 < right_border; ++j0)
+	{
+		int j = j0 + sg_id;
+		if (j >= left_border && j < right_border && pred(i, j))
+		{
+			functor(i, j);
+		}
+		sg.barrier();
+	}
+	sg.barrier();
+
+}
+
+
+template<int TILE_M, int TILE_N, typename Symbols, typename Strands>
+inline void 
+load_cache(TiledCache<TILE_M, TILE_N> &cache, Symbols a, Strands h_strands,
+	int i, int i_stride, int ii_limit)
+{
+	for (int ii = 0; ii < ii_limit; ++ii)
+	{
+		cache.a[ii] = a[i + i_stride * ii];
+		cache.h_strands[ii] = h_strands[i + i_stride * ii];
+	}
+}
+
+template<int TILE_M, int TILE_N, typename Strands>
+inline void
+store_cache(TiledCache<TILE_M, TILE_N> &cache, Strands h_strands,
+	int i, int i_stride, int ii_limit)
+{
+	for (int ii = 0; ii < ii_limit; ++ii)
+	{
+		h_strands[i + i_stride * ii] = cache.h_strands[ii];
 	}
 }
 

@@ -1,38 +1,51 @@
 #pragma once
 
-#include "lcs_common.hpp"
+#include "lcs_types.hpp"
 
-void Lcs_Semi_Reference(LcsInput &input, LcsContext &ctx)
+void Lcs_Semi_Reference(const LcsInput &input, LcsContext &ctx)
 {
-	InitInputs(input, ctx);
-	InitStrands(ctx);
+	int m = input.a_size;
+	int n = input.b_size;
 
-	// antidiagonal iteration
-	auto m = ctx.m;
-	auto n = ctx.n;
-
-	auto *h_strands = ctx.h_strands;
-	auto *v_strands = ctx.v_strands;
-
-	auto *a = ctx.a;
-	auto *b = ctx.b;
-
-	auto diag_count = m + n - 1;
-
-	for (auto diag_idx = 0; diag_idx < diag_count; ++diag_idx)
+	// Copy symbols
+	int *a = new int[m];
+	int *b = new int[n];
+	for (int i = 0; i < m; ++i)
 	{
-		auto i_first = diag_idx < m ? (m - diag_idx - 1) : 0;
-		auto j_first = diag_idx < m ? 0 : (diag_idx - m + 1);
+		a[i] = input.a_data[m - i - 1];
+	}
+	for (int j = 0; j < n; ++j)
+	{
+		b[j] = input.b_data[j];
+	}
 
-		auto diag_len = Min(m - i_first, n - j_first);
+	// Init strands
+	int *h_strands = new int[m];
+	int *v_strands = new int[n];
+	for (int i = 0; i < m; ++i)
+	{
+		h_strands[i] = i;
+	}
+	for (int j = 0; j < n; ++j)
+	{
+		v_strands[j] = m + j;
+	}
 
-		for (auto step = 0; step < diag_len; ++step)
+	int diag_count = m + n - 1;
+	for (int diag_idx = 0; diag_idx < diag_count; ++diag_idx)
+	{
+		int i_first = diag_idx < m ? (m - diag_idx - 1) : 0;
+		int j_first = diag_idx < m ? 0 : (diag_idx - m + 1);
+
+		int diag_len = Min(m - i_first, n - j_first);
+
+		for (int step = 0; step < diag_len; ++step)
 		{
-			auto i = i_first + step;
-			auto j = j_first + step;
+			int i = i_first + step;
+			int j = j_first + step;
 
-			auto h = h_strands[i];
-			auto v = v_strands[j];
+			int h = h_strands[i];
+			int v = v_strands[j];
 
 			bool has_match = a[i] == b[j];
 			bool has_crossing = h > v;
@@ -43,94 +56,98 @@ void Lcs_Semi_Reference(LcsInput &input, LcsContext &ctx)
 			v_strands[j] = need_swap ? h : v;
 		}
 	}
+
+	// Store strands in the context
+	ctx.h_strands = h_strands;
+	ctx.h_strands_size = m;
+	ctx.v_strands = v_strands;
+	ctx.v_strands_size = n;
+
+	// Cleanup
+	delete[] a;
+	delete[] b;
 }
 
-void Lcs_Prefix_Reference(LcsInput &input, LcsContext &ctx)
+void Lcs_Prefix_Reference(const LcsInput &input, LcsContext &ctx)
 {
-	InitInputsPrefix(input, ctx);
-	InitDiagsPrefix(ctx);
+	int m = input.a_size;
+	int n = input.b_size;
 
-	auto m = ctx.m;
-	auto n = ctx.n;
-
-	auto *diag0 = ctx.diag0;
-	auto *diag1 = ctx.diag1;
-	auto *diag2 = ctx.diag2;
-
-	auto *a = ctx.a;
-	auto *b = ctx.b;
-
-	auto diag_count = m + n - 1;
-
-	using Index = LcsContext::Index;
-	using Symbol = LcsContext::Symbol;
-
-	for (Index diag_idx = 0; diag_idx < diag_count; ++diag_idx)
+	// Copy symbols
+	int *a = new int[m];
+	int *b = new int[n];
+	for (int i = 0; i < m; ++i)
 	{
-		Index i_first = diag_idx < m ? (m - diag_idx - 1) : 0;
-		Index j_first = diag_idx < m ? 0 : (diag_idx - m + 1);
+		a[i] = input.a_data[m - i - 1];
+	}
+	for (int j = 0; j < m; ++j)
+	{
+		b[j] = input.b_data[j];
+	}
 
-		Index diag_len = Min(m - i_first, n - j_first);
+	int diag_count = m + n - 1;
+	int diag_max_size = Min(n, m) + 1;
 
-		for (Index step = 0; step < diag_len; ++step)
+	// NOTE: initialized to zero
+	int *diag0 = new int[diag_max_size] {};
+	int *diag1 = new int[diag_max_size] {};
+	int *diag2 = new int[diag_max_size] {};
+
+	for (int diag_idx = 0; diag_idx < diag_count; ++diag_idx)
+	{
+		int i_first = diag_idx < m ? (m - diag_idx - 1) : 0;
+		int j_first = diag_idx < m ? 0 : (diag_idx - m + 1);
+
+		int diag_len = Min(m - i_first, n - j_first);
+
+		for (int step = 0; step < diag_len; ++step)
 		{
-			Index i = i_first + step;
-			Index j = j_first + step;
+			int i = i_first + step;
+			int j = j_first + step;
 
-			Index di = i;
-			Index d_w = diag1[di];
-			Index d_n = diag1[di + 1];
-			Index d_nw = diag0[di + 1] + Index(a[i] == b[j]);
+			int di = i;
+			int d_w = diag1[di];
+			int d_n = diag1[di + 1];
+			int d_nw = diag0[di + 1] + int(a[i] == b[j]);
 
-			Index d = Max(Max(d_w, d_n), d_nw);
+			int d = Max(Max(d_w, d_n), d_nw);
 			diag2[di] = d;
 		}
 
 		// cycle diagonals
-		auto diag_old0 = diag0;
+		int *diag_old0 = diag0;
 		diag0 = diag1;
 		diag1 = diag2;
 		diag2 = diag_old0;
 	}
 
 	// final value is in diag1[0]
+	ctx.llcs = diag1[0];
 
-	Index llcs = diag1[0];
-	ctx.llcs = llcs;
-
+	delete[] a;
+	delete[] b;
+	delete[] diag0;
+	delete[] diag1;
+	delete[] diag2;
 }
 
 
+#if 0
 void Lcs_Prefix_Binary_Reference(LcsInput &input, LcsContext &ctx)
 {
-	InitInputsPrefixBinary(input, ctx);
-	InitStrandsPrefixBinary(ctx);
+	// Init symbols by converting to binary...
 
-	auto m = ctx.m;
-	auto n = ctx.n;
-
-	auto *h_strands = ctx.h_strands;
-	auto *v_strands = ctx.v_strands;
-
-	auto *a = ctx.a;
-	auto *b = ctx.b;
-
-	auto diag_count = m + n - 1;
-
-	using Index = uint32_t;
-	using Symbol = uint32_t;
-
-	for (uint32_t diag_idx = 0; diag_idx < diag_count; ++diag_idx)
+	for (int diag_idx = 0; diag_idx < diag_count; ++diag_idx)
 	{
-		uint32_t i_first = diag_idx < m ? (m - diag_idx - 1) : 0;
-		uint32_t j_first = diag_idx < m ? 0 : (diag_idx - m + 1);
+		int i_first = diag_idx < m ? (m - diag_idx - 1) : 0;
+		int j_first = diag_idx < m ? 0 : (diag_idx - m + 1);
 
-		uint32_t diag_len = Min(m - i_first, n - j_first);
+		int diag_len = Min(m - i_first, n - j_first);
 
-		for (uint32_t step = 0; step < diag_len; ++step)
+		for (int step = 0; step < diag_len; ++step)
 		{
-			uint32_t i = i_first + step;
-			uint32_t j = j_first + step;
+			int i = i_first + step;
+			int j = j_first + step;
 
 			uint32_t l_strand = h_strands[i];
 			uint32_t t_strand = v_strands[j];
@@ -191,3 +208,4 @@ void Lcs_Prefix_Binary_Reference(LcsInput &input, LcsContext &ctx)
 
 	ctx.llcs = 32*m - bit_count;
 }
+#endif
