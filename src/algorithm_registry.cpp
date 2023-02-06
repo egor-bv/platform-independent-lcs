@@ -16,7 +16,9 @@ sycl::queue *LcsAlgorithmRegistry::GetQueueForDeviceType(std::string device_type
 		{
 			QUEUE_GPU = new sycl::queue(sycl::gpu_selector());
 		}
+		return QUEUE_GPU;
 	}
+	return nullptr;
 }
 
 PermutationMatrix SemiLocalLcsImpl::operator()(const LcsInput &input)
@@ -70,9 +72,21 @@ LcsAlgorithmRegistry::LcsAlgorithmRegistry()
 	SEMI("tiled_st_16", (Lcs_Semi_Tiled_ST_NewScoping<16, 3, 3>));
 
 	SEMI("tiled_mt_8", (Lcs_Semi_Tiled_MT_Correct<8, 4, 4, 16>));
+	SEMI("tiled_mt_8_32", (Lcs_Semi_Tiled_MT_Correct<8,  5, 5, 32>));
+	SEMI("tiled_mt_8_64", (Lcs_Semi_Tiled_MT_Correct<8,  5, 5, 64>));
+	SEMI("tiled_mt_8_128", (Lcs_Semi_Tiled_MT_Correct<8, 5, 5, 128>));
+	SEMI("tiled_mt_8_256", (Lcs_Semi_Tiled_MT_Correct<8, 5, 5, 256>));
+	SEMI("tiled_mt_8_512", (Lcs_Semi_Tiled_MT_Correct<8, 5, 5, 512>));
+	
 	SEMI("tiled_mt_16", (Lcs_Semi_Tiled_MT_Correct<16, 3, 3, 16>));
 
 	SEMI("hybrid_mt_8", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 3>));
 	SEMI("hybrid_mt_16", (Lcs_Semi_Antidiagonal_Hybrid_MT<16, 3>));
-
+	SEMI("hybrid_depth_0", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 0>));
+	SEMI("hybrid_depth_1", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 1>));
+	SEMI("hybrid_depth_2", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 2>));
+	SEMI("hybrid_depth_3", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 3>));
+	SEMI("hybrid_depth_4", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 4>));
+	SEMI("hybrid_depth_5", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 5>));
+	SEMI("hybrid_depth_6", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 6>));
 }

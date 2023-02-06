@@ -223,14 +223,6 @@ public:
 	{
 	}
 
-	GridBuffers(LcsContext &ctx)
-		: a(ctx.a, ctx.m)
-		, b(ctx.b, ctx.n)
-		, h_strands(ctx.h_strands, ctx.m)
-		, v_strands(ctx.v_strands, ctx.n)
-	{
-	}
-
 	static GridBuffers FromSimple(GridEmbeddingSimple<Symbol, Strand> &g)
 	{
 		return GridBuffers(

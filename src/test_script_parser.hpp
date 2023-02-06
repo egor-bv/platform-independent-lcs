@@ -309,7 +309,7 @@ struct TestResultWriter
 
 	void WriteCsvHeader()
 	{
-		fprintf(file, "%s, %s, %s, %s, %s, %s\n",
+		fprintf(file, "%s, %s, %s, %s, %s, %s, %s, %s, %s\n",
 				"algorithm",
 				"device_type",
 
@@ -320,7 +320,8 @@ struct TestResultWriter
 				"source_b",
 
 				"elapsed_ms",
-				"hash");
+				"hash",
+				"speed");
 	}
 
 	void WriteLine(const TestCaseOptions &opts, const TestCaseResult &res)
@@ -344,7 +345,9 @@ struct TestResultWriter
 			fprintf(file, "%s(%d), ", opts.rng_b.c_str(), opts.seed_b);
 		}
 		fprintf(file, "%f, ", res.elapsed_ms);
-		fprintf(file, "%"PRId64, res.hash);
+		fprintf(file, "%" PRId64 ", ", res.hash);
+		double speed = ((int64_t)res.size_a * (int64_t)res.size_b) / (res.elapsed_ms * 1000.0);
+		fprintf(file, "%f", speed);
 		fprintf(file, "\n");
 	}
 };
