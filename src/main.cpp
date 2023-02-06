@@ -1,55 +1,81 @@
-#include <stdio.h>
+#include "test_script_parser.hpp"
+#include "test_utility.hpp"
+
+#include "lcs_types.hpp"
+
+#include <CL/sycl.hpp>
+#include "dpc_common.hpp"
+
+#include "algorithm_registry.hpp"
+
+using dpc_common::TimeInterval;
 
 
-#include "testing_argument_parser.hpp"
-#include "testing.hpp"
-
-#include "lcs_registry.hpp"
-
-
-int main0(int argc, const char **argv)
+int main(int argc, char **argv)
 {
-	auto *reg = get_global_lcs_registry();
-	for (auto kv : reg->Solvers())
+	const char *in_filename = argc >= 2 ? argv[1] : "test_default.txt";
+	const char *out_filename = argc >= 3 ? argv[2] : nullptr;
+
+	TextFileData script(in_filename);
+	LcsAlgorithmRegistry reg;
+
+	auto commands = ParseEntireScript(script.text.c_str());
+	int global_seed_counter = 1000;
+
+	TestResultWriter out(out_filename);
+	out.WriteCsvHeader();
+
+	for (auto cmd : commands)
 	{
-		auto name = kv.second.Name();
-		printf("Algorithm: %s\n", name.c_str());
+		// Prepare test case options
+		auto opts = cmd.ParseOptions();
+		// Prepare inputs
+		if (opts.seed_a == -1) opts.seed_a = global_seed_counter++;
+		if (opts.seed_b == -1) opts.seed_b = global_seed_counter++;
+
+		auto a = generate_random_binary_sequence(opts.size_a, opts.seed_a);
+		auto b = generate_random_binary_sequence(opts.size_b, opts.seed_b);
+		LcsInput input(a.data(), a.size(), b.data(), b.size());
+
+		// Find algorithm for device
+		auto impl = reg.Get(opts.algorithm, opts.device_type);
+		if (!impl.ok)
+		{
+			printf("ERROR: Unable to find algorihm '%s'\n", opts.algorithm.c_str());
+			continue;
+		}
+
+		for (int iter = 0; iter < opts.iterations; ++iter)
+		{
+			// Start timer
+			TimeInterval timer;
+
+			// Produce permutation matrix
+			auto perm = impl(input);
+
+			// Stop timer
+			double elapsed_ms = timer.Elapsed() * 1000.0;
+			int64_t num_cells_total = (int64_t)opts.size_a * (int64_t)opts.size_b;
+			double speed_cells_per_us = (double)num_cells_total / (elapsed_ms * 1000.0);
+
+			// Compute hash
+			int64_t hash = perm.hash();
+			// Prepare test case output struct
+			// Write output entry for test case
+			//printf("%s [%dx%d] speed: %f cell/us, hash: #%lld\n", opts.algorithm.c_str(),
+			//	   opts.size_a, opts.size_b, speed_cells_per_us, hash);
+
+			TestCaseResult res = {};
+			res.algorithm = opts.algorithm;
+			res.device_type = opts.device_type;
+			res.size_a = opts.size_a;
+			res.size_b = opts.size_b;
+			res.elapsed_ms = elapsed_ms;
+			res.hash = hash;
+
+			out.WriteLine(opts, res);
+		}
 	}
-}
 
-int main(int argc, const char **argv)
-{
-	CliArgumentParser args(argc, argv);
-	CliOptions opts;
-
-	args.opt_string(opts.a_file, "a_file");
-	args.opt_string(opts.b_file, "b_file");
-
-	args.opt_string(opts.algorithm, "algorithm");
-	args.opt_string(opts.device, "device");
-	args.opt_string(opts.test, "test");
-
-	args.opt_int(opts.a_size, "a_size");
-	args.opt_int(opts.b_size, "b_size");
-	args.opt_int(opts.a_seed, "a_seed");
-	args.opt_int(opts.b_seed, "b_seed");
-	args.opt_int(opts.iterations, "iterations");
-
-	args.opt_bool(opts.verbose, "verbose");
-
-	// opts.test = "correctness"; opts.algorithm = "tiled_mt_test";  cli_test_run(opts);
-
-	opts.test = "";
-	opts.iterations = 3;
-	opts.a_size = 3*32 * 1024;
-	opts.b_size = 3*32 * 1024;
-
-
-	opts.algorithm = "tiled_mt_test"; cli_test_run(opts);
-	// opts.algorithm = "tiled_st_test"; cli_test_run(opts);
-	// opts.algorithm = "tiled_st_ref"; cli_test_run(opts);
-
-
-	printf("Main working!\n");
 	return 0;
 }

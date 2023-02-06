@@ -1,90 +1,108 @@
 #pragma once
 
+#include "lcs_types.hpp"
+#include "lcs_grid_multi.hpp"
 #include "lcs_common.hpp"
 
-void Lcs_Hybrid(LcsInput &input, LcsContext &ctx)
+#include "permutation.hpp"
+#include "braid_multiplication.hpp"
+
+PermutationMatrix
+PermutationMatrixRecursivelyCombine(int i_sub_first, int i_sub_count,
+									int j_sub_first, int j_sub_count,
+									GridEmbeddingMulti<int, int> &grid)
 {
-	int m = input.size_a;
-	int n = input.size_b;
-
-	constexpr int SG_SIZE = 16;
-	constexpr int NUM_THREADS = 16;
-	int block_count_m = SG_SIZE;
-	int block_count_n = NUM_THREADS;
-
-	Assert(m % block_count_m == 0);
-	Assert(n % block_count_n == 0);
-
-
-	// make every block size be a multiple of cachline (assumed sizeof(Strand) == 4 here)
-	int block_size_m = m / block_count_m; // SmallestMultipleToFit(m / block_count_m, 16) * 16;
-	int block_size_n = n / block_count_n; // SmallestMultipleToFit(n / block_count_n, 16) * 16;
-
-	int a_alloc_len = block_size_m * block_count_m;
-	int b_alloc_len = block_size_n * block_count_n;
-	
-	int h_alloc_len = block_size_m * block_count_m * block_count_n;
-	int v_alloc_len = block_size_n * block_count_m * block_count_n;
-
-	int *as_data = new int[a_alloc_len];
-	int *bs_data = new int[b_alloc_len];
-
-	int *hs_data = new int[h_alloc_len];
-	int *vs_data = new int[v_alloc_len];
-
-	for (int i = 0; i < m; ++i)
+	if (i_sub_count == 1 && j_sub_count == 1)
 	{
-		as_data[i] = input.seq_a[m - i - 1];
+		int h_size = grid.h_size_combined(i_sub_first, 1);
+		int v_size = grid.v_size_combined(j_sub_first, 1);
+
+		return PermutationMatrix::FromStrands(grid.h_strands + grid.h_offset(i_sub_first, j_sub_first), h_size,
+											  grid.v_strands + grid.v_offset(i_sub_first, j_sub_first), v_size);
 	}
 
-	for (int j = 0; j < n; ++j)
+	if (i_sub_count > j_sub_count)
 	{
-		bs_data[j] = input.seq_b[j];
-	}
+		int overlap = grid.v_size_combined(j_sub_first, j_sub_count);
+		auto p = PermutationMatrixRecursivelyCombine(i_sub_first, i_sub_count / 2,
+													 j_sub_first, j_sub_count,
+													 grid);
+		auto q = PermutationMatrixRecursivelyCombine(i_sub_first + i_sub_count / 2, i_sub_count / 2,
+													 j_sub_first, j_sub_count,
+													 grid);
 
-	for (int block_j = 0; block_j < block_count_n; ++block_j)
+		return staggered_multiply<true>(q, p, overlap);
+	}
+	else
 	{
-		for (int tile_i = 0; tile_i < block_size_m; ++tile_i)
+		int overlap = grid.h_size_combined(i_sub_first, i_sub_count);
+		auto p = PermutationMatrixRecursivelyCombine(i_sub_first, i_sub_count,
+													 j_sub_first, j_sub_count / 2,
+													 grid);
+		auto q = PermutationMatrixRecursivelyCombine(i_sub_first, i_sub_count,
+													 j_sub_first + j_sub_count / 2, j_sub_count / 2,
+													 grid);
+		return staggered_multiply<false>(p, q, overlap);
+	}
+}
+
+PermutationMatrix
+CombineMultiGrid(GridEmbeddingMulti<int, int> &grid)
+{
+	return PermutationMatrixRecursivelyCombine(0, grid.num_subproblems_m,
+											   0, grid.num_subproblems_n,
+											   grid);
+}
+
+template <int SG_SIZE, int DEPTH>
+void
+Lcs_Semi_Antidiagonal_Hybrid_MT(const LcsInput &input, LcsContext &ctx)
+{
+	int count_m = 1;
+	int count_n = 1;
+	int m_remaining = input.a_size;
+	int n_remaining = input.b_size;
+
+	for (int depth = 0; depth < DEPTH; ++depth)
+	{
+		if (m_remaining <= 64 && n_remaining <= 64) break;
+		if (m_remaining >= n_remaining)
 		{
-			for (int step = 0; step < block_count_m; ++step)
-			{
-				int idx = 0;
-				idx += block_j * block_count_m * block_size_m;
-				idx += tile_i * block_count_m;
-				idx += step;
-				hs_data[idx] = block_size_m - tile_i - 1;
-			}
+			m_remaining /= 2;
+			count_m *= 2;
+		}
+		else
+		{
+			n_remaining /= 2;
+			count_n *= 2;
 		}
 	}
+	// printf("Given size: %dx%d, Depth: %d, Subproblems: %dx%d\n", input.a_size, input.b_size, DEPTH, count_m, count_n);
 
-	for (int j = 0; j < n; ++j)
+	auto grid = make_embedding_multi(input, count_m, count_n);
+
+	int m = grid.m;
+	int n = grid.n;
+
+	int stride_h = grid.stride_h;
+	int stride_v = grid.stride_v;
+
+	int sub_m = grid.sub_m;
+	int sub_n = grid.sub_n;
+	int clipped_sub_m = grid.clipped_sub_m;
+	int clipped_sub_n = grid.clipped_sub_n;
+
+	// Use single thread per subproblem, all done in a single dispatch
 	{
-		for (int step = 0; step < block_count_m; ++step)
+		int num_groups = grid.num_subproblems_m * grid.num_subproblems_n;
+		int local_size = SG_SIZE;
+		int global_size = local_size * num_groups;
+
+
+		auto buf = make_buffers(grid);
+		ctx.queue->submit([&](sycl::handler &cgh)
 		{
-			int idx = 0;
-			idx += j * block_count_m;
-			idx += step;
-			vs_data[idx] = block_size_m + j % block_size_n;
-		}
-	}
-
-
-	{
-		sycl::buffer<int, 1> as_buf(as_data, a_alloc_len);
-		sycl::buffer<int, 1> bs_buf(bs_data, b_alloc_len);
-		sycl::buffer<int, 1> hs_buf(hs_data, h_alloc_len);
-		sycl::buffer<int, 1> vs_buf(vs_data, v_alloc_len);
-
-		ctx.queue->submit([&](auto &cgh)
-		{
-			auto ias = as_buf.get_access<sycl::access::mode::read>(cgh);
-			auto ibs = bs_buf.get_access<sycl::access::mode::read>(cgh);
-			auto ihs = hs_buf.get_access<sycl::access::mode::read_write>(cgh);
-			auto ivs = vs_buf.get_access<sycl::access::mode::read_write>(cgh);
-
-			int local_size = SG_SIZE;
-			int global_size = SG_SIZE * NUM_THREADS;
-
+			auto acc = make_accessors(buf, cgh);
 			cgh.parallel_for(
 				sycl::nd_range<1>(global_size, local_size),
 				[=](sycl::nd_item<1> item)
@@ -93,45 +111,56 @@ void Lcs_Hybrid(LcsInput &input, LcsContext &ctx)
 				auto sg = item.get_sub_group();
 				auto sg_id = sg.get_local_linear_id();
 
-				// for (int block_j = 0; block_j < block_count_n; ++block_j)
+				auto group_id = item.get_group_linear_id();
+				int i_sub = group_id % count_m;
+				int j_sub = group_id / count_m;
+
+				int actual_m = i_sub == count_m - 1 ? clipped_sub_m : sub_m;
+				int actual_n = j_sub == count_n - 1 ? clipped_sub_n : sub_n;
+
+				auto update_cell = [&](int i, int j)
 				{
-					int block_j = item.get_group_linear_id();
-					// row-major order
-					for (int row = block_size_m - 1; row >= 0; --row)
+					int i_strands = i + stride_h * group_id;
+					int j_strands = j + stride_v * group_id;
+
+					int i_symbols = i + i_sub * sub_m;
+					int j_symbols = j + j_sub * sub_n;
+					update_cell_semilocal_separate_indexing(acc.a, acc.b, acc.h_strands, acc.v_strands,
+															i_symbols, j_symbols,
+															i_strands, j_strands);
+				};
+
+				int diag_count = actual_m + actual_n - 1;
+				for (int diag_idx = 0; diag_idx < diag_count; ++diag_idx)
+				{
+					auto d = antidiag_at(diag_idx, actual_m, actual_n);
+					int sg_step_count = d.diag_len / SG_SIZE;
+
+					// complete steps
+					#pragma unroll 4
+					for (int sg_step = 0; sg_step < sg_step_count; ++sg_step)
 					{
-						int h_idx = (row * block_count_m + sg_id) + block_j * block_count_m * block_size_m;
-						int a_idx = (row * block_count_m + sg_id);
-
-						int h = ihs[h_idx];
-						int a = ias[a_idx];
-
-						#pragma unroll 8
-						for (int col = 0; col < block_size_n; ++col)
-						{
-							int v_idx = (block_j * block_size_n + col) *block_count_m + sg_id;
-							int b_idx = (block_j * block_size_n + col);
-
-							int v = ivs[v_idx];
-							int b = ibs[b_idx];
-
-							// swap if ...
-							bool need_swap = (a == b) || h > v;
-
-							int new_v = need_swap ? h : v;
-							int new_h = need_swap ? v : h;
-
-							h = new_h;
-							v = new_v;
-
-							ivs[v_idx] = v;
-						}
-						ihs[h_idx] = h;
+						int step = sg_step * SG_SIZE + sg_id;
+						int i = d.i_first + step;
+						int j = d.j_first + step;
+						update_cell(i, j);
 					}
+
+					// last incomplete step when diag_len not multiple of SG_SIZE
+					int last_step = sg_step_count * SG_SIZE + sg_id;
+					if (last_step < d.diag_len)
+					{
+						int i = d.i_first + last_step;
+						int j = d.j_first + last_step;
+						update_cell(i, j);
+					}
+
+					sg.barrier();
 				}
-			});
 
-		});
-	}
+			}); // end parallel_for
+		}); // end submit
+	} // end buffers lifetime
 
-	// TODO: cleanup
+	ctx.matrix = CombineMultiGrid(grid);
 }

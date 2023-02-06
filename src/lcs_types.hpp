@@ -4,6 +4,7 @@
 #include <inttypes.h>
 
 #include "utility.hpp"
+#include "permutation.hpp"
 
 // Canonical type for LCS inputs -- two sequences & their sizes
 struct LcsInput
@@ -36,6 +37,8 @@ struct LcsContext
 
 	int llcs = -1;
 
+	PermutationMatrix matrix = {};
+
 	LcsContext(sycl::queue *q = nullptr)
 	{
 		queue = q;
@@ -49,4 +52,4 @@ struct LcsContext
 };
 
 // all LCS implementation functions have this signature
-typedef void(*LcsFunction)(const LcsInput &input, LcsContext &ctx);
+typedef void LcsFunction(const LcsInput &input, LcsContext &ctx);

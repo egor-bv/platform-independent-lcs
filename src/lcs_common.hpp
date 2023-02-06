@@ -4,7 +4,7 @@
 #include "lcs_types.hpp"
 
 template<typename Symbols, typename Strands>
-void
+inline void
 update_cell_semilocal(Symbols a, Symbols b, Strands h_strands, Strands v_strands, int i, int j)
 {
 	auto a_sym = a[i];
@@ -20,29 +20,26 @@ update_cell_semilocal(Symbols a, Symbols b, Strands h_strands, Strands v_strands
 	v_strands[j] = need_swap ? h_strand : v_strand;
 }
 
-
-
-// TODO
-class SemilocalCellProcess
+template<typename Symbols, typename Strands>
+inline void
+update_cell_semilocal_separate_indexing(Symbols a, Symbols b, Strands h_strands, Strands v_strands, 
+										int i_symbols, int j_symbols,
+										int i_strands, int j_strands)
 {
-public:
-	template<typename Symbols, typename Strands>
-	static void UpdateCell(Symbols a, Symbols b,
-		Strands h_strands, Strands v_strands, int i, int j)
-	{
-	}
-};
+	auto a_sym = a[i_symbols];
+	auto b_sym = b[j_symbols];
+	auto h_strand = h_strands[i_strands];
+	auto v_strand = v_strands[j_strands];
+
+	bool has_match = a_sym == b_sym;
+	bool has_crossing = h_strand > v_strand;
+	bool need_swap = has_match || has_crossing;
+
+	h_strands[i_strands] = need_swap ? v_strand : h_strand;
+	v_strands[j_strands] = need_swap ? h_strand : v_strand;
+}
 
 
-class BinaryPrefixProcess
-{
-public:
-	template<typename Symbols, typename Strands>
-	static void UpdateCell(Symbols a, Symbols b,
-		Strands h_strands, Strands v_strands, int i, int j)
-	{
-	}
-};
 
 
 template<int TILE_M, int TILE_N>
@@ -266,8 +263,8 @@ update_stripe_with_predicate(Functor functor, Predicate pred, sycl::sub_group sg
 
 	// Make it so right part is the only part when width is small
 	int left_part_first = left_border - SG_SIZE + 1;
-	int right_part_first = right_border < SG_SIZE ? left_part_first : Max(0, right_border - SG_SIZE);
-	int left_part_end = Min(0, right_part_first);
+	int right_part_first = right_border < SG_SIZE ? left_part_first : Max(left_border, right_border - SG_SIZE);
+	int left_part_end = Min(left_border, right_part_first);
 
 	for (int j0 = left_part_first; j0 < left_part_end; ++j0)
 	{
@@ -279,7 +276,7 @@ update_stripe_with_predicate(Functor functor, Predicate pred, sycl::sub_group sg
 		sg.barrier();
 	}
 
-	for (int j0 = 0; j0 < right_part_first; ++j0)
+	for (int j0 = left_part_end; j0 < right_part_first; ++j0)
 	{
 		int j = j0 + sg_id;
 		if (pred(i, j))
@@ -298,6 +295,7 @@ update_stripe_with_predicate(Functor functor, Predicate pred, sycl::sub_group sg
 		}
 		sg.barrier();
 	}
+
 	sg.barrier();
 
 }

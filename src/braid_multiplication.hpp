@@ -241,8 +241,8 @@ void steady_ant_seq(PermutationMatrix &p, PermutationMatrix &q,
 	steady_ant_seq(p_hi, q_hi, free_space_mem + 4 * size_lo, current_mem + 4 * size_lo, indices_mem + 2 * n);
 
 	// HACK: need to allocate these separately?
-	auto r_lo = p;
-	auto r_hi = q;
+	auto &r_lo = p;// p.SameSizeEmpty();
+	auto &r_hi = q;// q.SameSizeEmpty();
 
 	inverse_mapping(p_lo, p_lo_row_mapper, q_lo_col_mapper, r_lo);
 	inverse_mapping(p_hi, p_hi_row_mapper, q_hi_col_mapper, r_hi);
@@ -324,7 +324,7 @@ PermutationMatrix staggered_multiply(PermutationMatrix &p, PermutationMatrix &q,
 	}
 	else
 	{
-		int *memory_block = new int[k * 8 * 2];
+		int *memory_block = new int[k * 8 * 2]{ 0 };
 
 		int *mapping_row = new int[k];
 		int *mapping_col = new int[k];
@@ -401,8 +401,7 @@ PermutationMatrix staggered_multiply(PermutationMatrix &p, PermutationMatrix &q,
 			}
 		}
 
-		printf("Done with multiply...\n");
-		// Cleanup intermediate values...
+		// TODO: Cleanup intermediate values
 	}
 
 	return product;

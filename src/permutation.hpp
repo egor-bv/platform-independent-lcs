@@ -1,4 +1,5 @@
 #pragma once
+#include "utility.hpp"
 
 // NOTE: permutation matrix is always square
 class PermutationMatrix
@@ -10,24 +11,68 @@ class PermutationMatrix
 
 	int size = 0;
 
+
+public:
 	// Empty, also used as an error case
 	PermutationMatrix() = default;
 
+	PermutationMatrix(PermutationMatrix &&other)
+	{
+		if (this->owns_data)
+		{
+			this->~PermutationMatrix();
+		}
+		if (other.owns_data)
+		{
+			other.owns_data = false;
+			this->owns_data = true;
+		}
+		this->size = other.size;
+		this->row_to_col = other.row_to_col;
+		this->col_to_row = other.col_to_row;
+	}
 
-public:
+	PermutationMatrix &operator=(PermutationMatrix &&other)
+	{
+		if (this->owns_data)
+		{
+			this->~PermutationMatrix();
+		}
+		if (other.owns_data)
+		{
+			other.owns_data = false;
+			this->owns_data = true;
+		}
+		this->size = other.size;
+		this->row_to_col = other.row_to_col;
+		this->col_to_row = other.col_to_row;
 
+		return *this;
+	}
+
+
+	// Fixed size matrix that owns it's data 
 	PermutationMatrix(int _size)
 	{
-		row_to_col = new int[_size];
-		col_to_row = new int[_size];
 		size = _size;
+		if (_size != 0)
+		{
+			row_to_col = new int[_size];
+			col_to_row = new int[_size];
 
-		owns_data = true;
+			owns_data = true;
 
-		unset_all();
+			unset_all();
+		}
+	}
+
+	PermutationMatrix SameSizeEmpty()
+	{
+		return PermutationMatrix(size);
 	}
 
 	// NOTE: might be better to have separate type for slice/view kinda thing
+	// Allows to use preallocated memory chunks for data
 	static PermutationMatrix Preallocated(int _size, int *_row_to_col, int *_col_to_row)
 	{
 		PermutationMatrix result = {};
@@ -39,24 +84,33 @@ public:
 		return result;
 	}
 
-	static PermutationMatrix FromStrands(int *h_strands, int m, int *v_strands, int n)
-	{
-		int size = m + n;
-		auto result = PermutationMatrix(size);
+	// Helper to convert strand sequences to premutation matrix
+	void init_from_strands(int *h_strands, int m, int *v_strands, int n) {
+		int required_size = m + n;
+		Assert(required_size == size);
 		for (int l = 0; l < m; ++l)
 		{
 			if (0 <= h_strands[l] && h_strands[l] < size)
 			{
-				result.set_point(h_strands[l], n + l);
+				set_point(h_strands[l], n + l);
 			}
 		}
+		
 		for (int r = m; r < m + n; ++r)
 		{
 			if (0 <= v_strands[r - m] && v_strands[r - m] < size)
 			{
-				result.set_point(v_strands[r - m], r - m);
+				set_point(v_strands[r - m], r - m);
 			}
 		}
+	}
+
+
+	static PermutationMatrix FromStrands(int *h_strands, int m, int *v_strands, int n)
+	{
+		int size = m + n;
+		auto result = PermutationMatrix(size);
+		result.init_from_strands(h_strands, m, v_strands, n);
 		return result;
 	}
 
@@ -117,7 +171,8 @@ public:
 		return true;
 	}
 
-	double Similarity(const PermutationMatrix &other)
+	// Percentage of matching entries, used for debug purposes only
+	double similarity(const PermutationMatrix &other)
 	{
 		if (size != other.size) return 0.0;
 		int total = 0;
@@ -132,13 +187,14 @@ public:
 		return double(good) / double(total);
 	}
 
-	int64_t hash()
+	// Same hash function as in our reference code
+	int64 hash()
 	{
-		const int64_t R = 4294967279;
-		const int64_t M = 4294967291;
+		const int64 R = 4294967279;
+		const int64 M = 4294967291;
 
-		int64_t result = 0;
-		for (int i = 0; i < size; i++) 
+		int64 result = 0;
+		for (int i = 0; i < size; i++)
 		{
 			result = (R * result + get_row(i)) % M;
 		}

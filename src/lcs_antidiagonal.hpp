@@ -5,7 +5,8 @@
 #include "lcs_common.hpp"
 
 template<int SG_SIZE>
-void Lcs_Semi_Antidiagonal_ST(const LcsInput &input, LcsContext &ctx)
+void 
+Lcs_Semi_Antidiagonal_ST(const LcsInput &input, LcsContext &ctx)
 {
 	int m = input.a_size;
 	int n = input.b_size;

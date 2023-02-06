@@ -7,7 +7,6 @@ std::vector<int> generate_random_binary_sequence(int size, int seed)
 {
 	std::vector<int> result(size);
 	std::mt19937 rng(seed);
-
 	for (int i = 0; i < size; ++i)
 	{
 		result[i] = rng() & 1;
@@ -16,16 +15,18 @@ std::vector<int> generate_random_binary_sequence(int size, int seed)
 	return result;
 }
 
-std::vector<int> generate_random_uniform_sequence(int size, int range, int seed)
+
+#include <string>
+#include <fstream>
+
+struct TextFileData
 {
-	std::vector<int> result(size);
-	std::mt19937 rng(seed);
+	std::string text;
 
-	for (int i = 0; i < size; ++i)
+	TextFileData(const char *filename)
 	{
-		result[i] = rng() % range;
+		std::ifstream file(filename);
+		text = std::string((std::istreambuf_iterator<char>(file)),
+						   (std::istreambuf_iterator<char>()));
 	}
-
-	return result;
-}
-
+};

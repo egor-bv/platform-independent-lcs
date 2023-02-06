@@ -1,11 +1,14 @@
 #pragma once
-// general utility functions with minimal dependecies
+// General utility functions with minimal dependecies
 
+// Reimplementing some standard functions so they can be compiled inside SYCL kernel code
+// without issues
 
-// reimplementing some standard functions so they can be compiled inside SYCL kernel code
+using int64 = signed long long;
 
 template<typename T>
 inline T Max(T x, T y)
+
 {
 	return x > y ? x : y;
 }
@@ -31,10 +34,18 @@ inline int SmallestMultipleToFit(int at_least, int multiple_of)
 	return result;
 }
 
+inline int AlignedToMultiple(int at_least, int multiple_of)
+{
+	int result = SmallestMultipleToFit(at_least, multiple_of) * multiple_of;
+	return result;
+}
+
 inline int CeilDiv(int x, int y)
 {
 	int result = x / y + int(x % y != 0);
 	return result;
 }
 
-#define Assert(x) assert(x)
+#define UNUSED(x) (void)(x)
+#define Assert(x) UNUSED(x)
+

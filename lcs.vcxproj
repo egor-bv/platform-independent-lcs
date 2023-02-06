@@ -150,32 +150,28 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\lcs_impl.cpp" />
+    <ClCompile Include="src\algorithm_registry.cpp" />
     <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\old_main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\algorithm_registry.hpp" />
     <ClInclude Include="src\braid_multiplication.hpp" />
     <ClInclude Include="src\lcs_antidiagonal.hpp" />
     <ClInclude Include="src\lcs_common.hpp" />
     <ClInclude Include="src\lcs_grid.hpp" />
+    <ClInclude Include="src\lcs_grid_multi.hpp" />
     <ClInclude Include="src\lcs_hybrid.hpp" />
     <ClInclude Include="src\lcs_reference.hpp" />
-    <ClInclude Include="src\lcs_registry.hpp" />
-    <ClInclude Include="src\lcs_solver.hpp" />
-    <ClInclude Include="src\lcs_stairs.hpp" />
     <ClInclude Include="src\lcs_stripes.hpp" />
-    <ClInclude Include="src\lcs_subproblems.hpp" />
     <ClInclude Include="src\lcs_tiled.hpp" />
-    <ClInclude Include="src\lcs_traversal.hpp" />
     <ClInclude Include="src\lcs_types.hpp" />
-    <ClInclude Include="src\lcs_validation.hpp" />
     <ClInclude Include="src\permutation.hpp" />
-    <ClInclude Include="src\testing.hpp" />
-    <ClInclude Include="src\testing_argument_parser.hpp" />
-    <ClInclude Include="src\testing_fna_parser.hpp" />
-    <ClInclude Include="src\testing_utility.hpp" />
+    <ClInclude Include="src\test_utility.hpp" />
+    <ClInclude Include="src\test_script_parser.hpp" />
     <ClInclude Include="src\utility.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="test_default.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
