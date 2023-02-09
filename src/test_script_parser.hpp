@@ -350,4 +350,9 @@ struct TestResultWriter
 		fprintf(file, "%f", speed);
 		fprintf(file, "\n");
 	}
+	
+	void Flush()
+	{
+		fflush(file);
+	}
 };

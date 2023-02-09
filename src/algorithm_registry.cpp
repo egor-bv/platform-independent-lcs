@@ -60,33 +60,211 @@ SemiLocalLcsImpl LcsAlgorithmRegistry::Get(std::string name, std::string device_
 #include "lcs_hybrid.hpp"
 
 #define SEMI(name, fn) reg[name] = fn;
+#define TILED_ST(SG_SIZE, TILE_M, TILE_N) \
+SEMI("tiled_st_" #SG_SIZE "_" #TILE_M "_" #TILE_N, (Lcs_Semi_Tiled_ST_NewScoping<SG_SIZE, TILE_M, TILE_N>))
+
+#define TILED_MT(SG_SIZE, TILE_M, TILE_N, SUBDIVISIONS) \
+SEMI("tiled_mt_" #SG_SIZE "_" #TILE_M "_" #TILE_N "_" #SUBDIVISIONS, (Lcs_Semi_Tiled_MT_Correct<SG_SIZE, TILE_M, TILE_N, SUBDIVISIONS>))
+
+#define HYBRID(SG_SIZE, DEPTH) \
+SEMI("hybrid_" #SG_SIZE "_" #DEPTH, (Lcs_Semi_Antidiagonal_Hybrid<SG_SIZE, DEPTH>))
+
+#define TILED_ST_PERMUTATIONS 0
+#define TILED_MT_PERMUTATIONS 1
+
 LcsAlgorithmRegistry::LcsAlgorithmRegistry()
 {
-	SEMI("reference", (Lcs_Semi_Reference));
-	SEMI("antidiagonal_8", (Lcs_Semi_Antidiagonal_ST<8>));
-	SEMI("antidiagonal_16", (Lcs_Semi_Antidiagonal_ST<16>));
-	SEMI("stripes_8", (Lcs_Semi_Stripes_ST<8>));
-	SEMI("stripes_16", (Lcs_Semi_Stripes_ST<16>));
-
-	SEMI("tiled_st_8", (Lcs_Semi_Tiled_ST_NewScoping<8, 3, 3>));
-	SEMI("tiled_st_16", (Lcs_Semi_Tiled_ST_NewScoping<16, 3, 3>));
-
-	SEMI("tiled_mt_8", (Lcs_Semi_Tiled_MT_Correct<8, 4, 4, 16>));
-	SEMI("tiled_mt_8_32", (Lcs_Semi_Tiled_MT_Correct<8,  5, 5, 32>));
-	SEMI("tiled_mt_8_64", (Lcs_Semi_Tiled_MT_Correct<8,  5, 5, 64>));
-	SEMI("tiled_mt_8_128", (Lcs_Semi_Tiled_MT_Correct<8, 5, 5, 128>));
-	SEMI("tiled_mt_8_256", (Lcs_Semi_Tiled_MT_Correct<8, 5, 5, 256>));
-	SEMI("tiled_mt_8_512", (Lcs_Semi_Tiled_MT_Correct<8, 5, 5, 512>));
+	#if TILED_ST_PERMUTATIONS
+	TILED_ST(8, 1, 1);
+	TILED_ST(16, 1, 1);
+	TILED_ST(8, 1, 2);
+	TILED_ST(16, 1, 2);
+	TILED_ST(8, 1, 3);
+	TILED_ST(16, 1, 3);
+	TILED_ST(8, 1, 4);
+	TILED_ST(16, 1, 4);
+	TILED_ST(8, 1, 5);
+	TILED_ST(16, 1, 5);
+	TILED_ST(8, 1, 6);
+	TILED_ST(16, 1, 6);
+	TILED_ST(8, 1, 7);
+	TILED_ST(16, 1, 7);
+	TILED_ST(8, 1, 8);
+	TILED_ST(16, 1, 8);
+	TILED_ST(8, 2, 1);
+	TILED_ST(16, 2, 1);
+	TILED_ST(8, 2, 2);
+	TILED_ST(16, 2, 2);
+	TILED_ST(8, 2, 3);
+	TILED_ST(16, 2, 3);
+	TILED_ST(8, 2, 4);
+	TILED_ST(16, 2, 4);
+	TILED_ST(8, 2, 5);
+	TILED_ST(16, 2, 5);
+	TILED_ST(8, 2, 6);
+	TILED_ST(16, 2, 6);
+	TILED_ST(8, 2, 7);
+	TILED_ST(16, 2, 7);
+	TILED_ST(8, 2, 8);
+	TILED_ST(16, 2, 8);
+	TILED_ST(8, 3, 1);
+	TILED_ST(16, 3, 1);
+	TILED_ST(8, 3, 2);
+	TILED_ST(16, 3, 2);
+	TILED_ST(8, 3, 3);
+	TILED_ST(16, 3, 3);
+	TILED_ST(8, 3, 4);
+	TILED_ST(16, 3, 4);
+	TILED_ST(8, 3, 5);
+	TILED_ST(16, 3, 5);
+	TILED_ST(8, 3, 6);
+	TILED_ST(16, 3, 6);
+	TILED_ST(8, 3, 7);
+	TILED_ST(16, 3, 7);
+	TILED_ST(8, 3, 8);
+	TILED_ST(16, 3, 8);
+	TILED_ST(8, 4, 1);
+	TILED_ST(16, 4, 1);
+	TILED_ST(8, 4, 2);
+	TILED_ST(16, 4, 2);
+	TILED_ST(8, 4, 3);
+	TILED_ST(16, 4, 3);
+	TILED_ST(8, 4, 4);
+	TILED_ST(16, 4, 4);
+	TILED_ST(8, 4, 5);
+	TILED_ST(16, 4, 5);
+	TILED_ST(8, 4, 6);
+	TILED_ST(16, 4, 6);
+	TILED_ST(8, 4, 7);
+	TILED_ST(16, 4, 7);
+	TILED_ST(8, 4, 8);
+	TILED_ST(16, 4, 8);
+	TILED_ST(8, 5, 1);
+	TILED_ST(16, 5, 1);
+	TILED_ST(8, 5, 2);
+	TILED_ST(16, 5, 2);
+	TILED_ST(8, 5, 3);
+	TILED_ST(16, 5, 3);
+	TILED_ST(8, 5, 4);
+	TILED_ST(16, 5, 4);
+	TILED_ST(8, 5, 5);
+	TILED_ST(16, 5, 5);
+	TILED_ST(8, 5, 6);
+	TILED_ST(16, 5, 6);
+	TILED_ST(8, 5, 7);
+	TILED_ST(16, 5, 7);
+	TILED_ST(8, 5, 8);
+	TILED_ST(16, 5, 8);
+	TILED_ST(8, 6, 1);
+	TILED_ST(16, 6, 1);
+	TILED_ST(8, 6, 2);
+	TILED_ST(16, 6, 2);
+	TILED_ST(8, 6, 3);
+	TILED_ST(16, 6, 3);
+	TILED_ST(8, 6, 4);
+	TILED_ST(16, 6, 4);
+	TILED_ST(8, 6, 5);
+	TILED_ST(16, 6, 5);
+	TILED_ST(8, 6, 6);
+	TILED_ST(16, 6, 6);
+	TILED_ST(8, 6, 7);
+	TILED_ST(16, 6, 7);
+	TILED_ST(8, 6, 8);
+	TILED_ST(16, 6, 8);
+	TILED_ST(8, 7, 1);
+	TILED_ST(16, 7, 1);
+	TILED_ST(8, 7, 2);
+	TILED_ST(16, 7, 2);
+	TILED_ST(8, 7, 3);
+	TILED_ST(16, 7, 3);
+	TILED_ST(8, 7, 4);
+	TILED_ST(16, 7, 4);
+	TILED_ST(8, 7, 5);
+	TILED_ST(16, 7, 5);
+	TILED_ST(8, 7, 6);
+	TILED_ST(16, 7, 6);
+	TILED_ST(8, 7, 7);
+	TILED_ST(16, 7, 7);
+	TILED_ST(8, 7, 8);
+	TILED_ST(16, 7, 8);
+	TILED_ST(8, 8, 1);
+	TILED_ST(16, 8, 1);
+	TILED_ST(8, 8, 2);
+	TILED_ST(16, 8, 2);
+	TILED_ST(8, 8, 3);
+	TILED_ST(16, 8, 3);
+	TILED_ST(8, 8, 4);
+	TILED_ST(16, 8, 4);
+	TILED_ST(8, 8, 5);
+	TILED_ST(16, 8, 5);
+	TILED_ST(8, 8, 6);
+	TILED_ST(16, 8, 6);
+	TILED_ST(8, 8, 7);
+	TILED_ST(16, 8, 7);
+	TILED_ST(8, 8, 8);
+	TILED_ST(16, 8, 8);
+	#endif
 	
-	SEMI("tiled_mt_16", (Lcs_Semi_Tiled_MT_Correct<16, 3, 3, 16>));
-
-	SEMI("hybrid_mt_8", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 3>));
-	SEMI("hybrid_mt_16", (Lcs_Semi_Antidiagonal_Hybrid_MT<16, 3>));
-	SEMI("hybrid_depth_0", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 0>));
-	SEMI("hybrid_depth_1", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 1>));
-	SEMI("hybrid_depth_2", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 2>));
-	SEMI("hybrid_depth_3", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 3>));
-	SEMI("hybrid_depth_4", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 4>));
-	SEMI("hybrid_depth_5", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 5>));
-	SEMI("hybrid_depth_6", (Lcs_Semi_Antidiagonal_Hybrid_MT<8, 6>));
+	#if TILED_MT_PERMUTATIONS
+	TILED_MT(16, 4, 6, 4);
+	TILED_MT(16, 4, 6, 8);
+	TILED_MT(16, 4, 6, 16);
+	TILED_MT(16, 4, 6, 32);
+	TILED_MT(16, 4, 6, 64);
+	TILED_MT(16, 4, 6, 128);
+	TILED_MT(16, 4, 6, 256);
+	TILED_MT(16, 4, 6, 512);
+	
+	
+	TILED_MT(16, 2, 2, 128)
+	TILED_MT(16, 2, 2, 256)
+	TILED_MT(16, 2, 3, 128)
+	TILED_MT(16, 2, 3, 256)
+	TILED_MT(16, 2, 4, 128)
+	TILED_MT(16, 2, 4, 256)
+	TILED_MT(16, 2, 5, 128)
+	TILED_MT(16, 2, 5, 256)
+	TILED_MT(16, 2, 6, 128)
+	TILED_MT(16, 2, 6, 256)
+	TILED_MT(16, 3, 2, 128)
+	TILED_MT(16, 3, 2, 256)
+	TILED_MT(16, 3, 3, 128)
+	TILED_MT(16, 3, 3, 256)
+	TILED_MT(16, 3, 4, 128)
+	TILED_MT(16, 3, 4, 256)
+	TILED_MT(16, 3, 5, 128)
+	TILED_MT(16, 3, 5, 256)
+	TILED_MT(16, 3, 6, 128)
+	TILED_MT(16, 3, 6, 256)
+	TILED_MT(16, 4, 2, 128)
+	TILED_MT(16, 4, 2, 256)
+	TILED_MT(16, 4, 3, 128)
+	TILED_MT(16, 4, 3, 256)
+	TILED_MT(16, 4, 4, 128)
+	TILED_MT(16, 4, 4, 256)
+	TILED_MT(16, 4, 5, 128)
+	TILED_MT(16, 4, 5, 256)
+	TILED_MT(16, 4, 6, 128)
+	TILED_MT(16, 4, 6, 256)
+	TILED_MT(16, 5, 2, 128)
+	TILED_MT(16, 5, 2, 256)
+	TILED_MT(16, 5, 3, 128)
+	TILED_MT(16, 5, 3, 256)
+	TILED_MT(16, 5, 4, 128)
+	TILED_MT(16, 5, 4, 256)
+	TILED_MT(16, 5, 5, 128)
+	TILED_MT(16, 5, 5, 256)
+	TILED_MT(16, 5, 6, 128)
+	TILED_MT(16, 5, 6, 256)
+	TILED_MT(16, 6, 2, 128)
+	TILED_MT(16, 6, 2, 256)
+	TILED_MT(16, 6, 3, 128)
+	TILED_MT(16, 6, 3, 256)
+	TILED_MT(16, 6, 4, 128)
+	TILED_MT(16, 6, 4, 256)
+	TILED_MT(16, 6, 5, 128)
+	TILED_MT(16, 6, 5, 256)
+	TILED_MT(16, 6, 6, 128)
+	TILED_MT(16, 6, 6, 256)
+	#endif
 }

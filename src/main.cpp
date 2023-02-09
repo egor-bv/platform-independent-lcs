@@ -24,9 +24,13 @@ int main(int argc, char **argv)
 
 	TestResultWriter out(out_filename);
 	out.WriteCsvHeader();
-
+	
+	int counter = 0;
 	for (auto cmd : commands)
 	{
+		printf("%d/%d\n", counter, commands.size());
+		++counter;
+		
 		// Prepare test case options
 		auto opts = cmd.ParseOptions();
 		// Prepare inputs
@@ -75,6 +79,7 @@ int main(int argc, char **argv)
 
 			out.WriteLine(opts, res);
 		}
+		out.Flush();
 	}
 
 	return 0;
