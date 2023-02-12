@@ -70,6 +70,8 @@ int main(int argc, char **argv)
 			//	   opts.size_a, opts.size_b, speed_cells_per_us, hash);
 
 			TestCaseResult res = {};
+			res.device = impl.queue->get_info<sycl::info::queue::device>().get_info<sycl::info::device::name>();
+			// printf("device: %s\n", res.device.c_str());
 			res.algorithm = opts.algorithm;
 			res.device_type = opts.device_type;
 			res.size_a = opts.size_a;

@@ -267,6 +267,7 @@ struct TestCaseResult
 {
 	std::string algorithm;
 	std::string device_type;
+	std::string device;
 
 	// std::string source_a;
 	// std::string source_b;
@@ -309,9 +310,10 @@ struct TestResultWriter
 
 	void WriteCsvHeader()
 	{
-		fprintf(file, "%s, %s, %s, %s, %s, %s, %s, %s, %s\n",
+		fprintf(file, "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
 				"algorithm",
 				"device_type",
+				"device",
 
 				"size_a",
 				"size_b",
@@ -326,26 +328,28 @@ struct TestResultWriter
 
 	void WriteLine(const TestCaseOptions &opts, const TestCaseResult &res)
 	{
-		fprintf(file, "%s, %s, ", res.algorithm.c_str(), res.device_type.c_str());
-		fprintf(file, "%d, %d, ", res.size_a, res.size_b);
+		fprintf(file, "%s,", res.algorithm.c_str());
+		fprintf(file, "%s,", res.device_type.c_str());
+		fprintf(file, "%s,", res.device.c_str());
+		fprintf(file, "%d,%d,", res.size_a, res.size_b);
 		if (!opts.file_a.empty())
 		{
-			fprintf(file, "%s, ", opts.file_a.c_str());
+			fprintf(file, "%s,", opts.file_a.c_str());
 		}
 		else
 		{
-			fprintf(file, "%s(%d), ", opts.rng_a.c_str(), opts.seed_a);
+			fprintf(file, "%s(%d),", opts.rng_a.c_str(), opts.seed_a);
 		}
 		if (!opts.file_b.empty())
 		{
-			fprintf(file, "%s, ", opts.file_b.c_str());
+			fprintf(file, "%s,", opts.file_b.c_str());
 		}
 		else
 		{
-			fprintf(file, "%s(%d), ", opts.rng_b.c_str(), opts.seed_b);
+			fprintf(file, "%s(%d),", opts.rng_b.c_str(), opts.seed_b);
 		}
-		fprintf(file, "%f, ", res.elapsed_ms);
-		fprintf(file, "%" PRId64 ", ", res.hash);
+		fprintf(file, "%f,", res.elapsed_ms);
+		fprintf(file, "%" PRId64 ",", res.hash);
 		double speed = ((int64_t)res.size_a * (int64_t)res.size_b) / (res.elapsed_ms * 1000.0);
 		fprintf(file, "%f", speed);
 		fprintf(file, "\n");

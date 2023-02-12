@@ -70,10 +70,11 @@ SEMI("tiled_mt_" #SG_SIZE "_" #TILE_M "_" #TILE_N "_" #SUBDIVISIONS, (Lcs_Semi_T
 SEMI("hybrid_" #SG_SIZE "_" #DEPTH, (Lcs_Semi_Antidiagonal_Hybrid<SG_SIZE, DEPTH>))
 
 #define TILED_ST_PERMUTATIONS 0
-#define TILED_MT_PERMUTATIONS 1
+#define TILED_MT_PERMUTATIONS 0
 
 LcsAlgorithmRegistry::LcsAlgorithmRegistry()
 {
+	SEMI("tiled_mt_8", (Lcs_Semi_Tiled_MT_Correct<8, 4, 6, 16>));
 	#if TILED_ST_PERMUTATIONS
 	TILED_ST(8, 1, 1);
 	TILED_ST(16, 1, 1);
