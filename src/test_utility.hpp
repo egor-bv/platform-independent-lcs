@@ -3,6 +3,8 @@
 #include <vector>
 #include <random>
 
+
+
 std::vector<int> generate_random_binary_sequence(int size, int seed)
 {
 	std::vector<int> result(size);

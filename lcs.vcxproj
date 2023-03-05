@@ -158,6 +158,7 @@
     <ClInclude Include="src\braid_multiplication.hpp" />
     <ClInclude Include="src\lcs_antidiagonal.hpp" />
     <ClInclude Include="src\lcs_common.hpp" />
+    <ClInclude Include="src\lcs_general.hpp" />
     <ClInclude Include="src\lcs_grid.hpp" />
     <ClInclude Include="src\lcs_grid_multi.hpp" />
     <ClInclude Include="src\lcs_hybrid.hpp" />

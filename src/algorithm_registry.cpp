@@ -53,13 +53,23 @@ SemiLocalLcsImpl LcsAlgorithmRegistry::Get(std::string name, std::string device_
 	return result;
 }
 
+
+#define SEMI(name, fn) reg[name] = fn;
+
+#define INCLUDE_ONEAPI_LCS_IMPL 1
+
+#if INCLUDE_ONEAPI_LCS_IMPL
 #include "lcs_reference.hpp"
 #include "lcs_antidiagonal.hpp"
 #include "lcs_stripes.hpp"
 #include "lcs_tiled.hpp"
 #include "lcs_hybrid.hpp"
+#include "lcs_general.hpp"
 
-#define SEMI(name, fn) reg[name] = fn;
+#define GENERAL(SG_SIZE, TILE_M, TILE_N, DEPTH, SUBD) \
+SEMI("g_" #SG_SIZE "_" #TILE_M "_" #TILE_N "_" #DEPTH "_" #SUBD, (Lcs_General<SG_SIZE, TILE_M, TILE_N, DEPTH, SUBD>))
+
+
 #define TILED_ST(SG_SIZE, TILE_M, TILE_N) \
 SEMI("tiled_st_" #SG_SIZE "_" #TILE_M "_" #TILE_N, (Lcs_Semi_Tiled_ST_NewScoping<SG_SIZE, TILE_M, TILE_N>))
 
@@ -75,6 +85,7 @@ SEMI("hybrid_" #SG_SIZE "_" #DEPTH, (Lcs_Semi_Antidiagonal_Hybrid<SG_SIZE, DEPTH
 LcsAlgorithmRegistry::LcsAlgorithmRegistry()
 {
 	SEMI("tiled_mt_8", (Lcs_Semi_Tiled_MT_Correct<8, 4, 6, 16>));
+	GENERAL(8, 4, 6, 2, 8);
 	#if TILED_ST_PERMUTATIONS
 	TILED_ST(8, 1, 1);
 	TILED_ST(16, 1, 1);
@@ -269,3 +280,10 @@ LcsAlgorithmRegistry::LcsAlgorithmRegistry()
 	TILED_MT(16, 6, 6, 256)
 	#endif
 }
+
+#else // INCLUDE_ONEAPI_LCS_IMPL
+LcsAlgorithmRegistry::LcsAlgorithmRegistry()
+{
+	// Nothing here
+}
+#endif

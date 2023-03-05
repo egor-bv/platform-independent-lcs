@@ -10,7 +10,6 @@
 
 using dpc_common::TimeInterval;
 
-
 int main(int argc, char **argv)
 {
 	const char *in_filename = argc >= 2 ? argv[1] : "test_default.txt";
@@ -24,13 +23,13 @@ int main(int argc, char **argv)
 
 	TestResultWriter out(out_filename);
 	out.WriteCsvHeader();
-	
+
 	int counter = 0;
 	for (auto cmd : commands)
 	{
 		printf("%d/%d\n", counter, commands.size());
 		++counter;
-		
+
 		// Prepare test case options
 		auto opts = cmd.ParseOptions();
 		// Prepare inputs

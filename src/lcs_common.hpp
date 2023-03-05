@@ -22,7 +22,7 @@ update_cell_semilocal(Symbols a, Symbols b, Strands h_strands, Strands v_strands
 
 template<typename Symbols, typename Strands>
 inline void
-update_cell_semilocal_separate_indexing(Symbols a, Symbols b, Strands h_strands, Strands v_strands, 
+update_cell_semilocal_separate_indexing(Symbols a, Symbols b, Strands h_strands, Strands v_strands,
 										int i_symbols, int j_symbols,
 										int i_strands, int j_strands)
 {
@@ -53,9 +53,9 @@ struct TiledCache
 template<int TILE_M, int TILE_N, typename Symbols, typename Strands>
 inline void
 update_cell_tile_semilocal(TiledCache<TILE_M, TILE_N> &cache,
-	Symbols a, Symbols b, Strands h_strands, Strands v_strands,
-	int i_stride, int j_stride,
-	int i_low, int j_low)
+						   Symbols a, Symbols b, Strands h_strands, Strands v_strands,
+						   int i_stride, int j_stride,
+						   int i_low, int j_low)
 {
 	// a, h_strands are unused
 	for (int jj = 0; jj < TILE_N; ++jj)
@@ -84,9 +84,9 @@ update_cell_tile_semilocal(TiledCache<TILE_M, TILE_N> &cache,
 template<int TILE_M, int TILE_N, typename Symbols, typename Strands>
 inline void
 update_cell_tile_limit_semilocal(TiledCache<TILE_M, TILE_N> &cache,
-	Symbols a, Symbols b, Strands h_strands, Strands v_strands,
-	int i_stride, int j_stride,
-	int i_low, int j_low, int ii_limit, int jj_limit)
+								 Symbols a, Symbols b, Strands h_strands, Strands v_strands,
+								 int i_stride, int j_stride,
+								 int i_low, int j_low, int ii_limit, int jj_limit)
 {
 	// a, h_strands are unused
 	for (int jj = 0; jj < jj_limit; ++jj)
@@ -117,7 +117,7 @@ update_cell_tile_limit_semilocal(TiledCache<TILE_M, TILE_N> &cache,
 template<int SG_SIZE, typename Functor0, typename Functor1>
 inline void
 stripe_iterate(Functor0 functor_complete, Functor1 functor_incomplete, sycl::sub_group sg,
-	int i0, int left_border, int right_border)
+			   int i0, int left_border, int right_border)
 {
 	int sg_id = sg.get_local_linear_id();
 	int i = i0 + sg_id;
@@ -162,7 +162,7 @@ stripe_iterate(Functor0 functor_complete, Functor1 functor_incomplete, sycl::sub
 template<int SG_SIZE, typename Functor, typename Predicate>
 inline void
 stripe_iterate_with_predicate(Functor functor, Predicate pred, sycl::sub_group sg,
-	int i0, int left_border, int right_border)
+							  int i0, int left_border, int right_border)
 {
 	int sg_id = sg.get_local_linear_id();
 	int i = i0 + sg_id;
@@ -210,7 +210,7 @@ stripe_iterate_with_predicate(Functor functor, Predicate pred, sycl::sub_group s
 template<int SG_SIZE, typename Functor>
 inline void
 update_stripe(Functor functor, sycl::sub_group sg,
-	int i0, int left_border, int right_border)
+			  int i0, int left_border, int right_border)
 {
 	int sg_id = sg.get_local_linear_id();
 	int i = i0 + sg_id;
@@ -256,7 +256,7 @@ update_stripe(Functor functor, sycl::sub_group sg,
 template<int SG_SIZE, typename Functor, typename Predicate>
 inline void
 update_stripe_with_predicate(Functor functor, Predicate pred, sycl::sub_group sg,
-	int i0, int left_border, int right_border)
+							 int i0, int left_border, int right_border)
 {
 	int sg_id = sg.get_local_linear_id();
 	int i = i0 + sg_id;
@@ -302,9 +302,9 @@ update_stripe_with_predicate(Functor functor, Predicate pred, sycl::sub_group sg
 
 
 template<int TILE_M, int TILE_N, typename Symbols, typename Strands>
-inline void 
+inline void
 load_cache(TiledCache<TILE_M, TILE_N> &cache, Symbols a, Strands h_strands,
-	int i, int i_stride, int ii_limit)
+		   int i, int i_stride, int ii_limit)
 {
 	for (int ii = 0; ii < ii_limit; ++ii)
 	{
@@ -316,7 +316,7 @@ load_cache(TiledCache<TILE_M, TILE_N> &cache, Symbols a, Strands h_strands,
 template<int TILE_M, int TILE_N, typename Strands>
 inline void
 store_cache(TiledCache<TILE_M, TILE_N> &cache, Strands h_strands,
-	int i, int i_stride, int ii_limit)
+			int i, int i_stride, int ii_limit)
 {
 	for (int ii = 0; ii < ii_limit; ++ii)
 	{

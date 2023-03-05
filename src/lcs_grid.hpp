@@ -73,6 +73,7 @@ class DeinterleavedArrayDescriptor
 	int stride;
 
 public:
+	DeinterleavedArrayDescriptor() = default;
 
 	DeinterleavedArrayDescriptor(int len)
 	{
@@ -80,7 +81,7 @@ public:
 		int num_tiles = SmallestMultipleToFit(len_original, TileSize);
 		// want each segment to be aligned to cacheline boundary
 		// but since we don't know element size here & TileSize is small, just align to 64 elements
-		constexpr int cacheline_elements = 64;
+		constexpr int cacheline_elements = 16;
 		stride = SmallestMultipleToFit(num_tiles, cacheline_elements) * cacheline_elements;
 		len_allocated = stride * TileSize;
 	}

@@ -716,7 +716,7 @@ void Lcs_Semi_Tiled_MT_good_threads(const LcsInput &input, LcsContext &ctx)
 static const CONSTANT char FMT_GROUP[] = "group_id: %d, left_border: %d, right_border: %d\n";
 // static const CONSTANT char FMT_GROUP[]
 
-#define K_PRINTF(FMT, ...) const CONSTANT char FMT_[] = FMT; sycl::ext::oneapi::experimental::printf(FMT_, __VA_ARGS__)
+#define K_PRINTF(FMT, ...) do { const CONSTANT char FMT_[] = FMT; sycl::ext::oneapi::experimental::printf(FMT_, __VA_ARGS__); } while(0)
 
 template<int SG_SIZE, int TILE_M, int TILE_N, int SUBDIVISIONS>
 void Lcs_Semi_Tiled_MT_Correct(const LcsInput &input, LcsContext &ctx)
@@ -739,6 +739,14 @@ void Lcs_Semi_Tiled_MT_Correct(const LcsInput &input, LcsContext &ctx)
 
 	int block_width = CeilDiv(region_n, SUBDIVISIONS);
 	int num_blocks_n = CeilDiv(region_n, block_width);
+
+	if (0)
+	{
+		printf("i_stride: %d, j_stride: %d\n",
+			   i_stride, j_stride);
+		printf("num_blocks_m: %d, num_blocks_n: %d, num_subproblems_m: %d, num_subproblems_n %d\n",
+			   num_blocks_m, num_blocks_n, 1, 1);
+	}
 
 	int pass_count = num_blocks_m + num_blocks_n - 1;
 	{
@@ -784,7 +792,17 @@ void Lcs_Semi_Tiled_MT_Correct(const LcsInput &input, LcsContext &ctx)
 
 					bool incomplete = incomplete_stripe || incomplete_tile;
 					
-					
+					if (0 && sg_id == 0)
+					{
+						K_PRINTF("(*) pass: %d,\n",
+								 pass);
+						K_PRINTF("i_sub: %d, j_sub: %d, lb: %d, rb: %d\n",
+								 0, 0, left_border, right_border);
+						K_PRINTF("i0: %d\n",
+								 i0);
+
+					}
+
 					if (!incomplete_stripe)
 					{
 						if (right_border >= region_n && jj_limit != TILE_N)

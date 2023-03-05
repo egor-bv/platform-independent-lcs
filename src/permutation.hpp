@@ -114,6 +114,7 @@ public:
 		return result;
 	}
 
+
 	~PermutationMatrix()
 	{
 		// TODO: make it work with copying / moving
