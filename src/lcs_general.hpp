@@ -433,8 +433,6 @@ update_tile_semilocal_limit_with_offset(TiledCache<TILE_M, TILE_N> &cache,
 }
 
 
-#include "lcs_tiled.hpp"
-
 template<int SG_SIZE, int TILE_M, int TILE_N, int DEPTH, int THREAD_SUBDIVISION>
 void
 Lcs_General(const LcsInput &input, LcsContext &ctx)
@@ -458,17 +456,8 @@ Lcs_General(const LcsInput &input, LcsContext &ctx)
 
 	int i_stride = gl.sub_h_desc.Stride();
 	int j_stride = gl.sub_v_desc.Stride();
-	if (0)
-	{
-		printf("i_stride: %d, j_stride: %d\n",
-			   i_stride, j_stride);
-		printf("a_alloc_len: %d, b_alloc_len: %d\n",
-			   gl.a_len_alloc, gl.b_len_alloc);
-		printf("h_alloc_len: %d, v_alloc_len: %d\n",
-			   gl.h_len_alloc, gl.v_len_alloc);
-		printf("num_blocks_m: %d, num_blocks_n: %d, num_subproblems_m: %d, num_subproblems_n %d\n",
-			   num_blocks_m, num_blocks_n, num_subproblems_m, num_subproblems_n);
-	}
+
+
 	int local_size = SG_SIZE;
 	{
 		auto buf = make_buffers(grid);
@@ -517,18 +506,6 @@ Lcs_General(const LcsInput &input, LcsContext &ctx)
 					bool tile_incomplete_vertically = (i0 + SG_SIZE >= actual_num_tiles_m) && (ii_incomplete > 0);
 					bool tile_incomplete_horizontally = (right_border >= actual_num_tiles_n) && (jj_incomplete > 0);
 
-
-					if (0 && local_id == 0)
-					{
-						K_PRINTF("pass: %d,\n",
-								 pass_idx);
-						K_PRINTF("i_sub: %d, j_sub: %d, lb: %d, rb: %d\n",
-								 i_sub, j_sub, left_border, right_border);
-						K_PRINTF("i0: %d\n",
-								 i0);
-						K_PRINTF("offsets: a=%d, b=%d, h=%d, v=%d", a_offset, b_offset, h_offset, v_offset);
-
-					}
 
 					bool has_complete_part = !(incomplete_vertically || tile_incomplete_vertically);
 					bool has_incomplete_part = !has_complete_part || tile_incomplete_horizontally;
@@ -623,79 +600,3 @@ Lcs_General(const LcsInput &input, LcsContext &ctx)
 	ctx.matrix = CombineMultiGridGeneral(grid);
 }
 
-
-template<int SG_SIZE, int TILE_M, int TILE_N, int DEPTH, int THREAD_SUBDIVISION>
-void
-Lcs_General_(const LcsInput &input, LcsContext &ctx)
-{
-	int num_subproblems_m = 1;
-	int num_subproblems_n = 1;
-	DivideIntoSubproblems(input, DEPTH, &num_subproblems_m, &num_subproblems_n);
-
-	auto grid = make_embedding_general<TILE_M, TILE_N>(input, num_subproblems_m, num_subproblems_n);
-	int m = grid.gl.m_given;
-	int n = grid.gl.n_given;
-
-	int max_sub_m = grid.gl.max_sub_m;
-	int max_sub_n = grid.gl.max_sub_n;
-	int clipped_sub_m = grid.gl.clipped_sub_m;
-	int clipped_sub_n = grid.gl.clipped_sub_n;
-
-	int block_height = SG_SIZE;
-	int num_blocks_m = CeilDiv(max_sub_m, block_height);
-	int block_width = CeilDiv(max_sub_n, THREAD_SUBDIVISION);
-	int num_blocks_n = CeilDiv(max_sub_n, block_width);
-
-	int num_subproblems_total = num_subproblems_m * num_subproblems_n;
-	int num_passes = num_blocks_m + num_blocks_n - 1;
-
-	auto gl = grid.gl;
-
-	int region_m = CeilDiv(gl.max_sub_m, TILE_M);
-	int region_n = CeilDiv(gl.max_sub_n, TILE_N);
-
-
-	int local_size = SG_SIZE;
-	{
-		auto buf = make_buffers(grid);
-
-		for (int pass_idx = 0; pass_idx < num_passes; ++pass_idx)
-		{
-			auto block_diag = antidiag_at(pass_idx, num_blocks_m, num_blocks_n);
-
-			int global_size = SG_SIZE * block_diag.diag_len * num_subproblems_total;
-
-			ctx.queue->submit([&](sycl::handler &cgh)
-			{
-				auto acc = make_accessors(buf, cgh);
-				cgh.parallel_for(sycl::nd_range<1>(global_size, local_size),
-								 [=](sycl::nd_item<1> item)
-								 [[intel::reqd_sub_group_size(SG_SIZE)]]
-				{
-					auto sg = item.get_sub_group();
-					auto local_id = sg.get_local_linear_id();
-					auto group_id = item.get_group_linear_id();
-
-					int block_idx = group_id % block_diag.diag_len;
-					int i_sub = (group_id / block_diag.diag_len) % gl.num_subproblems_m;
-					int j_sub = (group_id / block_diag.diag_len) / gl.num_subproblems_n;
-
-					int actual_sub_m = i_sub == gl.num_subproblems_m ? gl.clipped_sub_m : gl.max_sub_m;
-					int actual_sub_n = j_sub == gl.num_subproblems_n ? gl.clipped_sub_n : gl.max_sub_m;
-
-
-					int i0 = (block_diag.i_first + block_idx) * SG_SIZE;
-					int left_border = (block_diag.j_first + block_idx) * block_width;
-					int right_border = Min(left_border + block_width, region_n);
-
-					int i = i0 + local_id;
-					bool incomplete = false;
-
-
-				}); // end parallel_for
-			}); // end submit
-		} // end for 
-	} // end buffers lifetime
-
-	ctx.matrix = CombineMultiGridGeneral(grid);
-}

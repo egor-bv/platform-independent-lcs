@@ -56,9 +56,6 @@ SemiLocalLcsImpl LcsAlgorithmRegistry::Get(std::string name, std::string device_
 
 #define SEMI(name, fn) reg[name] = fn;
 
-#define INCLUDE_ONEAPI_LCS_IMPL 1
-
-#if INCLUDE_ONEAPI_LCS_IMPL
 #include "lcs_reference.hpp"
 #include "lcs_antidiagonal.hpp"
 #include "lcs_stripes.hpp"
@@ -66,224 +63,40 @@ SemiLocalLcsImpl LcsAlgorithmRegistry::Get(std::string name, std::string device_
 #include "lcs_hybrid.hpp"
 #include "lcs_general.hpp"
 
-#define GENERAL(SG_SIZE, TILE_M, TILE_N, DEPTH, SUBD) \
-SEMI("g_" #SG_SIZE "_" #TILE_M "_" #TILE_N "_" #DEPTH "_" #SUBD, (Lcs_General<SG_SIZE, TILE_M, TILE_N, DEPTH, SUBD>))
 
+#define GENERAL(SG_SIZE, TILE_M, TILE_N, DEPTH, SECTIONS) \
+SEMI("g_" #SG_SIZE "_" #TILE_M "_" #TILE_N "_" #DEPTH "_" #SECTIONS, (Lcs_General<SG_SIZE, TILE_M, TILE_N, DEPTH, SECTIONS>))
 
 #define TILED_ST(SG_SIZE, TILE_M, TILE_N) \
-SEMI("tiled_st_" #SG_SIZE "_" #TILE_M "_" #TILE_N, (Lcs_Semi_Tiled_ST_NewScoping<SG_SIZE, TILE_M, TILE_N>))
+SEMI("tiled_st_" #SG_SIZE "_" #TILE_M "_" #TILE_N, (Lcs_Semi_Tiled_ST<SG_SIZE, TILE_M, TILE_N>))
 
-#define TILED_MT(SG_SIZE, TILE_M, TILE_N, SUBDIVISIONS) \
-SEMI("tiled_mt_" #SG_SIZE "_" #TILE_M "_" #TILE_N "_" #SUBDIVISIONS, (Lcs_Semi_Tiled_MT_Correct<SG_SIZE, TILE_M, TILE_N, SUBDIVISIONS>))
+#define TILED_MT(SG_SIZE, TILE_M, TILE_N, SECTIONS) \
+SEMI("tiled_mt_" #SG_SIZE "_" #TILE_M "_" #TILE_N "_" #SECTIONS, (Lcs_Semi_Tiled_MT<SG_SIZE, TILE_M, TILE_N, SECTIONS>))
 
 #define HYBRID(SG_SIZE, DEPTH) \
-SEMI("hybrid_" #SG_SIZE "_" #DEPTH, (Lcs_Semi_Antidiagonal_Hybrid<SG_SIZE, DEPTH>))
+SEMI("hybrid_" #SG_SIZE "_" #DEPTH, (Lcs_Semi_Antidiagonal_Hybrid_MT<SG_SIZE, DEPTH>))
 
-#define TILED_ST_PERMUTATIONS 0
-#define TILED_MT_PERMUTATIONS 0
+#define GENERAL_NAMED(name, SG_SIZE, TILE_M, TILE_N, DEPTH, SECTIONS) SEMI(name, (Lcs_General<SG_SIZE, TILE_M, TILE_N, DEPTH, SECTIONS>))
+#define TILED_ST_NAMED(name, SG_SIZE, TILE_M, TILE_N) SEMI(name, (Lcs_Semi_Tiled_ST<SG_SIZE, TILE_M, TILE_N>))
+#define TILED_MT_NAMED(name, ...) SEMI(name, (Lcs_Semi_Tiled_MT<__VA_ARGS__>))
+#define HYBRID_NAMED(name, ...) SEMI(name, (Lcs_Semi_Antidiagonal_Hybrid_MT<__VA_ARGS__>))
 
-LcsAlgorithmRegistry::LcsAlgorithmRegistry()
-{
-	SEMI("tiled_mt_8", (Lcs_Semi_Tiled_MT_Correct<8, 4, 6, 16>));
-	GENERAL(8, 4, 6, 2, 8);
-	#if TILED_ST_PERMUTATIONS
-	TILED_ST(8, 1, 1);
-	TILED_ST(16, 1, 1);
-	TILED_ST(8, 1, 2);
-	TILED_ST(16, 1, 2);
-	TILED_ST(8, 1, 3);
-	TILED_ST(16, 1, 3);
-	TILED_ST(8, 1, 4);
-	TILED_ST(16, 1, 4);
-	TILED_ST(8, 1, 5);
-	TILED_ST(16, 1, 5);
-	TILED_ST(8, 1, 6);
-	TILED_ST(16, 1, 6);
-	TILED_ST(8, 1, 7);
-	TILED_ST(16, 1, 7);
-	TILED_ST(8, 1, 8);
-	TILED_ST(16, 1, 8);
-	TILED_ST(8, 2, 1);
-	TILED_ST(16, 2, 1);
-	TILED_ST(8, 2, 2);
-	TILED_ST(16, 2, 2);
-	TILED_ST(8, 2, 3);
-	TILED_ST(16, 2, 3);
-	TILED_ST(8, 2, 4);
-	TILED_ST(16, 2, 4);
-	TILED_ST(8, 2, 5);
-	TILED_ST(16, 2, 5);
-	TILED_ST(8, 2, 6);
-	TILED_ST(16, 2, 6);
-	TILED_ST(8, 2, 7);
-	TILED_ST(16, 2, 7);
-	TILED_ST(8, 2, 8);
-	TILED_ST(16, 2, 8);
-	TILED_ST(8, 3, 1);
-	TILED_ST(16, 3, 1);
-	TILED_ST(8, 3, 2);
-	TILED_ST(16, 3, 2);
-	TILED_ST(8, 3, 3);
-	TILED_ST(16, 3, 3);
-	TILED_ST(8, 3, 4);
-	TILED_ST(16, 3, 4);
-	TILED_ST(8, 3, 5);
-	TILED_ST(16, 3, 5);
-	TILED_ST(8, 3, 6);
-	TILED_ST(16, 3, 6);
-	TILED_ST(8, 3, 7);
-	TILED_ST(16, 3, 7);
-	TILED_ST(8, 3, 8);
-	TILED_ST(16, 3, 8);
-	TILED_ST(8, 4, 1);
-	TILED_ST(16, 4, 1);
-	TILED_ST(8, 4, 2);
-	TILED_ST(16, 4, 2);
-	TILED_ST(8, 4, 3);
-	TILED_ST(16, 4, 3);
-	TILED_ST(8, 4, 4);
-	TILED_ST(16, 4, 4);
-	TILED_ST(8, 4, 5);
-	TILED_ST(16, 4, 5);
-	TILED_ST(8, 4, 6);
-	TILED_ST(16, 4, 6);
-	TILED_ST(8, 4, 7);
-	TILED_ST(16, 4, 7);
-	TILED_ST(8, 4, 8);
-	TILED_ST(16, 4, 8);
-	TILED_ST(8, 5, 1);
-	TILED_ST(16, 5, 1);
-	TILED_ST(8, 5, 2);
-	TILED_ST(16, 5, 2);
-	TILED_ST(8, 5, 3);
-	TILED_ST(16, 5, 3);
-	TILED_ST(8, 5, 4);
-	TILED_ST(16, 5, 4);
-	TILED_ST(8, 5, 5);
-	TILED_ST(16, 5, 5);
-	TILED_ST(8, 5, 6);
-	TILED_ST(16, 5, 6);
-	TILED_ST(8, 5, 7);
-	TILED_ST(16, 5, 7);
-	TILED_ST(8, 5, 8);
-	TILED_ST(16, 5, 8);
-	TILED_ST(8, 6, 1);
-	TILED_ST(16, 6, 1);
-	TILED_ST(8, 6, 2);
-	TILED_ST(16, 6, 2);
-	TILED_ST(8, 6, 3);
-	TILED_ST(16, 6, 3);
-	TILED_ST(8, 6, 4);
-	TILED_ST(16, 6, 4);
-	TILED_ST(8, 6, 5);
-	TILED_ST(16, 6, 5);
-	TILED_ST(8, 6, 6);
-	TILED_ST(16, 6, 6);
-	TILED_ST(8, 6, 7);
-	TILED_ST(16, 6, 7);
-	TILED_ST(8, 6, 8);
-	TILED_ST(16, 6, 8);
-	TILED_ST(8, 7, 1);
-	TILED_ST(16, 7, 1);
-	TILED_ST(8, 7, 2);
-	TILED_ST(16, 7, 2);
-	TILED_ST(8, 7, 3);
-	TILED_ST(16, 7, 3);
-	TILED_ST(8, 7, 4);
-	TILED_ST(16, 7, 4);
-	TILED_ST(8, 7, 5);
-	TILED_ST(16, 7, 5);
-	TILED_ST(8, 7, 6);
-	TILED_ST(16, 7, 6);
-	TILED_ST(8, 7, 7);
-	TILED_ST(16, 7, 7);
-	TILED_ST(8, 7, 8);
-	TILED_ST(16, 7, 8);
-	TILED_ST(8, 8, 1);
-	TILED_ST(16, 8, 1);
-	TILED_ST(8, 8, 2);
-	TILED_ST(16, 8, 2);
-	TILED_ST(8, 8, 3);
-	TILED_ST(16, 8, 3);
-	TILED_ST(8, 8, 4);
-	TILED_ST(16, 8, 4);
-	TILED_ST(8, 8, 5);
-	TILED_ST(16, 8, 5);
-	TILED_ST(8, 8, 6);
-	TILED_ST(16, 8, 6);
-	TILED_ST(8, 8, 7);
-	TILED_ST(16, 8, 7);
-	TILED_ST(8, 8, 8);
-	TILED_ST(16, 8, 8);
-	#endif
-	
-	#if TILED_MT_PERMUTATIONS
-	TILED_MT(16, 4, 6, 4);
-	TILED_MT(16, 4, 6, 8);
-	TILED_MT(16, 4, 6, 16);
-	TILED_MT(16, 4, 6, 32);
-	TILED_MT(16, 4, 6, 64);
-	TILED_MT(16, 4, 6, 128);
-	TILED_MT(16, 4, 6, 256);
-	TILED_MT(16, 4, 6, 512);
-	
-	
-	TILED_MT(16, 2, 2, 128)
-	TILED_MT(16, 2, 2, 256)
-	TILED_MT(16, 2, 3, 128)
-	TILED_MT(16, 2, 3, 256)
-	TILED_MT(16, 2, 4, 128)
-	TILED_MT(16, 2, 4, 256)
-	TILED_MT(16, 2, 5, 128)
-	TILED_MT(16, 2, 5, 256)
-	TILED_MT(16, 2, 6, 128)
-	TILED_MT(16, 2, 6, 256)
-	TILED_MT(16, 3, 2, 128)
-	TILED_MT(16, 3, 2, 256)
-	TILED_MT(16, 3, 3, 128)
-	TILED_MT(16, 3, 3, 256)
-	TILED_MT(16, 3, 4, 128)
-	TILED_MT(16, 3, 4, 256)
-	TILED_MT(16, 3, 5, 128)
-	TILED_MT(16, 3, 5, 256)
-	TILED_MT(16, 3, 6, 128)
-	TILED_MT(16, 3, 6, 256)
-	TILED_MT(16, 4, 2, 128)
-	TILED_MT(16, 4, 2, 256)
-	TILED_MT(16, 4, 3, 128)
-	TILED_MT(16, 4, 3, 256)
-	TILED_MT(16, 4, 4, 128)
-	TILED_MT(16, 4, 4, 256)
-	TILED_MT(16, 4, 5, 128)
-	TILED_MT(16, 4, 5, 256)
-	TILED_MT(16, 4, 6, 128)
-	TILED_MT(16, 4, 6, 256)
-	TILED_MT(16, 5, 2, 128)
-	TILED_MT(16, 5, 2, 256)
-	TILED_MT(16, 5, 3, 128)
-	TILED_MT(16, 5, 3, 256)
-	TILED_MT(16, 5, 4, 128)
-	TILED_MT(16, 5, 4, 256)
-	TILED_MT(16, 5, 5, 128)
-	TILED_MT(16, 5, 5, 256)
-	TILED_MT(16, 5, 6, 128)
-	TILED_MT(16, 5, 6, 256)
-	TILED_MT(16, 6, 2, 128)
-	TILED_MT(16, 6, 2, 256)
-	TILED_MT(16, 6, 3, 128)
-	TILED_MT(16, 6, 3, 256)
-	TILED_MT(16, 6, 4, 128)
-	TILED_MT(16, 6, 4, 256)
-	TILED_MT(16, 6, 5, 128)
-	TILED_MT(16, 6, 5, 256)
-	TILED_MT(16, 6, 6, 128)
-	TILED_MT(16, 6, 6, 256)
-	#endif
-}
-
-#else // INCLUDE_ONEAPI_LCS_IMPL
-LcsAlgorithmRegistry::LcsAlgorithmRegistry()
-{
-	// Nothing here
-}
+#ifndef LCS_VARIANT_LIST_INCLUDE_FILE
+#define LCS_USE_DEFAULT_VARIANTS 1
 #endif
+
+LcsAlgorithmRegistry::LcsAlgorithmRegistry()
+{
+	SEMI("ref", (Lcs_Semi_Reference));
+	#if LCS_USE_DEFAULT_VARIANTS
+	GENERAL(8, 4, 6, 2, 8);
+	TILED_ST(8, 4, 6);
+	TILED_MT(8, 4, 6, 8);
+	HYBRID(8, 3);
+
+	GENERAL_NAMED("general", 8, 3, 6, 2, 8);
+	TILED_ST_NAMED("tiled_st", 8, 4, 6);
+	TILED_MT_NAMED("tiled_mt", 8, 4, 6, 8);
+	HYBRID_NAMED("hybrid", 8, 3);
+	#endif
+}
