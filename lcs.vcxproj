@@ -156,19 +156,17 @@
   <ItemGroup>
     <ClInclude Include="src\algorithm_registry.hpp" />
     <ClInclude Include="src\braid_multiplication.hpp" />
-    <ClInclude Include="src\lcs_antidiagonal.hpp" />
     <ClInclude Include="src\lcs_common.hpp" />
-    <ClInclude Include="src\lcs_general.hpp" />
     <ClInclude Include="src\lcs_grid.hpp" />
-    <ClInclude Include="src\lcs_grid_multi.hpp" />
-    <ClInclude Include="src\lcs_hybrid.hpp" />
+    <ClInclude Include="src\lcs_interface_interlal.hpp" />
     <ClInclude Include="src\lcs_reference.hpp" />
-    <ClInclude Include="src\lcs_stripes.hpp" />
+    <ClInclude Include="src\lcs_residual_fixup.hpp" />
     <ClInclude Include="src\lcs_tiled.hpp" />
     <ClInclude Include="src\lcs_types.hpp" />
     <ClInclude Include="src\permutation.hpp" />
+    <ClInclude Include="src\sycl_utility.hpp" />
     <ClInclude Include="src\test_utility.hpp" />
-    <ClInclude Include="src\test_script_parser.hpp" />
+    <ClInclude Include="src\test_setup.hpp" />
     <ClInclude Include="src\utility.hpp" />
   </ItemGroup>
   <ItemGroup>

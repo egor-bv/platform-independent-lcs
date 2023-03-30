@@ -1,5 +1,2 @@
-algorithm=ref device_type=cpu size_a=20480 size_b=20480 seed_a=999 seed_b=888 iterations=3
-algorithm=tiled_mt device_type=cpu size_a=20480 size_b=20480 seed_a=999 seed_b=888 iterations=3
-algorithm=tiled_st device_type=cpu size_a=20480 size_b=20480 seed_a=999 seed_b=888 iterations=3
-algorithm=hybrid device_type=cpu size_a=20480 size_b=20480 seed_a=999 seed_b=888 iterations=3
-algorithm=general device_type=cpu size_a=20480 size_b=20480 seed_a=999 seed_b=888 iterations=3
+algorithm=mt device_type=cpu size_a=40961 size_b=40963 seed_a=999 seed_b=999 iterations=6
+algorithm=slm device_type=cpu size_a=40961 size_b=40963 seed_a=999 seed_b=999 iterations=6

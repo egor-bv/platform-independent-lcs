@@ -1,48 +1,70 @@
+// LCS algorithms perform dynamic programming computations on a grid
+// 
+
 #pragma once
 
 #include <CL/sycl.hpp>
-#include "lcs_common.hpp"
+
+#include "lcs_interface_interlal.hpp"
+#include "lcs_residual_fixup.hpp"
+
+#include "utility.hpp"
 
 
-// Arrays are laid out as-is with sequence a reversed
-template<typename Symbol, typename Strand>
-class GridEmbeddingSimple
+
+
+struct GridShapeSimple
 {
-public:
-	Symbol *a_data;
-	Symbol *b_data;
-	Strand *h_strands;
-	Strand *v_strands;
+	int m_given;
+	int n_given;
 
-	int m;
-	int n;
+	int m_aligned;
+	int n_aligned;
 
-	GridEmbeddingSimple(const Symbol *a_raw, int a_len, const Symbol *b_raw, int b_len)
+	GridShapeSimple(int _m_given, int _n_given,
+					int m_alignment = 1, int n_alignment = 1)
+		: m_given(_m_given)
+		, n_given(_n_given)
+		, m_aligned(AlignedToMultiple(m_given, m_alignment))
+		, n_aligned(AlignedToMultiple(n_given, n_alignment))
 	{
-		m = a_len;
-		n = b_len;
+	}
+};
 
-		a_data = new Symbol[m];
-		b_data = new Symbol[n];
+struct GridEmbeddingSimple
+{
+	GridShapeSimple shape;
+
+	Word *a;
+	Word *b;
+	Word *h_strands;
+	Word *v_strands;
+
+	GridEmbeddingSimple(Word *a_raw, int a_len,
+						Word *b_raw, int b_len)
+		: shape(a_len, b_len)
+	{
+		int m = shape.m_aligned;
+		int n = shape.n_aligned;
+
+		a = new Word[m];
+		b = new Word[n];
 
 		for (int i = 0; i < m; ++i)
 		{
-			a_data[i] = a_raw[m - i - 1];
+			a[i] = a_raw[m - i - 1];
 		}
-
 		for (int j = 0; j < n; ++j)
 		{
-			b_data[j] = b_raw[j];
+			b[j] = b_raw[j];
 		}
 
-		h_strands = new Strand[m];
-		v_strands = new Strand[n];
-
+		h_strands = new Word[m];
+		v_strands = new Word[n];
 		for (int i = 0; i < m; ++i)
 		{
 			h_strands[i] = i;
 		}
-
 		for (int j = 0; j < n; ++j)
 		{
 			v_strands[j] = m + j;
@@ -52,171 +74,174 @@ public:
 
 	~GridEmbeddingSimple()
 	{
-		delete[] a_data;
-		delete[] b_data;
+		delete[] a;
+		delete[] b;
 		delete[] h_strands;
 		delete[] v_strands;
 	}
 };
 
 
-// Defines how indices are transformed in (de)interleaving
-// where:
-// Interleaved   ~ ABCDABCDABCDABCD
-// Deinterleaved ~ AAAABBBBCCCCDDDD
-// also same as transposing a 2d array with some padding
-template<int TileSize>
-class DeinterleavedArrayDescriptor
+struct TiledArrayDescriptor
 {
-	int len_original;
-	int len_allocated;
+	int len_given;
+	int tile_size;
+	int tile_count;
 	int stride;
 
-public:
-	DeinterleavedArrayDescriptor() = default;
-
-	DeinterleavedArrayDescriptor(int len)
+	TiledArrayDescriptor(int _len_given, int _tile_size, int _block_size)
 	{
-		len_original = len;
-		int num_tiles = SmallestMultipleToFit(len_original, TileSize);
-		// want each segment to be aligned to cacheline boundary
-		// but since we don't know element size here & TileSize is small, just align to 64 elements
-		constexpr int cacheline_elements = 16;
-		stride = SmallestMultipleToFit(num_tiles, cacheline_elements) * cacheline_elements;
-		len_allocated = stride * TileSize;
+		len_given = _len_given;
+		tile_size = _tile_size;
+
+		tile_count = len_given / tile_size;
+		tile_count = tile_count / _block_size * _block_size;
+		stride = tile_count;
+
 	}
 
-
-	int Len()
+	int LenLinear() const
 	{
-		return len_original;
+		return tile_count * tile_size;
 	}
 
-	int LenAllocated()
+	int LenAllocated() const
 	{
-		return len_allocated;
+		return stride * tile_size;
 	}
 
-	int Stride()
+	int Deinterleave(int interleaved_idx) const
 	{
-		return stride;
-	}
-
-	int RegionUsefulSize()
-	{
-		return CeilDiv(len_original, TileSize);
-	}
-	
-	int IncompleteTileLimit()
-	{
-		int result = len_original % TileSize;
-		if (result == 0)
-		{
-			result = TileSize;
-		}
-		return result;
-	}
-
-
-	int Deinterleave(int interleaved_idx)
-	{
-		int mod = interleaved_idx % TileSize;
-		int off = interleaved_idx / TileSize;
+		int mod = interleaved_idx % tile_size;
+		int off = interleaved_idx / tile_size;
 		int idx = mod * stride + off;
 		return idx;
 	}
 
-	int Interleave(int deinterleaved_idx)
+	int Reinterleave(int deinterleaved_idx) const
 	{
-		int mod = deinterleaved_idx % stride;
-		int off = deinterleaved_idx / stride;
-		int idx = mod * TileSize + off;
+		int mod = deinterleaved_idx % tile_size;
+		int off = deinterleaved_idx / tile_size;
+		int idx = mod * tile_size + off;
 		return idx;
 	}
+};
 
-	bool Inside(int deinterleaved_idx)
+struct GridShapeTiled
+{
+	int m_given;
+	int n_given;
+
+	TiledArrayDescriptor h_desc;
+	TiledArrayDescriptor v_desc;
+
+	int remainder_m;
+	int remainder_n;
+
+	GridShapeTiled(int _m_given, int _tile_m, int _block_m,
+				   int _n_given, int _tile_n, int _block_n)
+		: m_given(_m_given)
+		, n_given(_n_given)
+		, h_desc(_m_given, _tile_m, _block_m)
+		, v_desc(_n_given, _tile_n, _block_n)
 	{
-		int mod = deinterleaved_idx % stride;
+		remainder_m = m_given - h_desc.LenLinear();
+		remainder_n = n_given - v_desc.LenLinear();
 	}
 };
 
 
-// Arrays are laid out in deinterleaved fashion with TileM x TileN sized tiles
-template<typename Symbol, typename Strand, int TileM, int TileN>
-class GridEmbeddingDeinterleaved
+
+struct GridEmbeddingTiled
 {
-public:
-	Symbol *a_data;
-	Symbol *b_data;
-	Strand *h_strands;
-	Strand *v_strands;
+	GridShapeTiled shape;
 
-	DeinterleavedArrayDescriptor<TileM> h_desc;
-	DeinterleavedArrayDescriptor<TileN> v_desc;
+	Word *a;
+	Word *b;
+	Word *h_strands;
+	Word *v_strands;
 
-	GridEmbeddingDeinterleaved(const Symbol *a_raw, int a_len, const Symbol *b_raw, int b_len)
-		: h_desc(a_len)
-		, v_desc(b_len)
+	GridEmbeddingTiled(const Word *a_raw, int a_len, int tile_m, int block_m,
+					   const Word *b_raw, int b_len, int tile_n, int block_n)
+		: shape(a_len, tile_m, block_m,
+				b_len, tile_n, block_n)
 	{
-		int h_len = h_desc.LenAllocated();
-		int v_len = v_desc.LenAllocated();
+		int m_alloc = shape.h_desc.LenAllocated();
+		int n_alloc = shape.v_desc.LenAllocated();;
 
-		a_data = new Symbol[h_len];
-		b_data = new Symbol[v_len];
+		int m = shape.h_desc.LenLinear();
+		int n = shape.v_desc.LenLinear();
 
-		for (int i = 0; i < h_desc.Len(); ++i)
+		int i_offset = shape.remainder_m;
+
+		a = new Word[m_alloc];
+		b = new Word[n_alloc];
+
+		for (int i = 0; i < m; ++i)
 		{
-			int i_di = h_desc.Deinterleave(i);
-			a_data[i_di] = a_raw[h_desc.Len() - i - 1];
+			int i_di = shape.h_desc.Deinterleave(i);
+			a[i_di] = a_raw[m - i - 1];
+		}
+		for (int j = 0; j < n; ++j)
+		{
+			int j_di = shape.v_desc.Deinterleave(j);
+			b[j_di] = b_raw[j];
 		}
 
-		for (int j = 0; j < v_desc.Len(); ++j)
+		h_strands = new Word[m_alloc];
+		v_strands = new Word[n_alloc];
+
+		for (int i = 0; i < m; ++i)
 		{
-			int j_di = v_desc.Deinterleave(j);
-			b_data[j_di] = b_raw[j];
+			int i_di = shape.h_desc.Deinterleave(i);
+			h_strands[i_di] = i_offset + i;
 		}
-
-		h_strands = new Strand[h_len];
-		v_strands = new Strand[v_len];
-
-		for (int i = 0; i < h_desc.Len(); ++i)
+		for (int j = 0; j < n; ++j)
 		{
-			int i_di = h_desc.Deinterleave(i);
-			h_strands[i_di] = i;
-		}
-
-		for (int j = 0; j < v_desc.Len(); ++j)
-		{
-			int j_di = v_desc.Deinterleave(j);
-			v_strands[j_di] = j + h_desc.Len();
+			int j_di = shape.v_desc.Deinterleave(j);
+			v_strands[j_di] = i_offset + m + j;
 		}
 	}
 
-	~GridEmbeddingDeinterleaved()
+	~GridEmbeddingTiled()
 	{
-		delete[] a_data;
-		delete[] b_data;
+		delete[] a;
+		delete[] b;
 		delete[] h_strands;
 		delete[] v_strands;
 	}
 };
 
 
-// Structure holding sycl buffers to avoid repetition
-// Doesn't know anything about in-buffer layout
-template<typename Symbol, typename Strand>
-class GridBuffers
+struct GridShapeGeneral
 {
-public:
-	sycl::buffer<Symbol, 1> a;
-	sycl::buffer<Symbol, 1> b;
-	sycl::buffer<Strand, 1> h_strands;
-	sycl::buffer<Strand, 1> v_strands;
+	int m_given;
+	int n_given;
 
-	GridBuffers(const GridBuffers<Symbol, Strand> &other) = delete;
+	int sub_count_m;
+	int sub_count_n;
 
-	GridBuffers(Symbol *a_data, int a_len, Symbol *b_data, int b_len,
-		Strand *h_strands_data, int h_strands_len, Strand *v_strands_data, int v_strands_len)
+	TiledArrayDescriptor sub_h_desc;
+	TiledArrayDescriptor sub_v_desc;
+};
+
+
+
+struct GridBuffers
+{
+	sycl::buffer<Word, 1> a;
+	sycl::buffer<Word, 1> b;
+
+	sycl::buffer<Word, 1> h_strands;
+	sycl::buffer<Word, 1> v_strands;
+
+
+	GridBuffers(const GridBuffers &other) = delete;
+
+	GridBuffers(Word *a_data, int a_len,
+				Word *b_data, int b_len,
+				Word *h_strands_data, int h_strands_len,
+				Word *v_strands_data, int v_strands_len)
 		: a(a_data, a_len)
 		, b(b_data, b_len)
 		, h_strands(h_strands_data, h_strands_len)
@@ -224,196 +249,220 @@ public:
 	{
 	}
 
-	static GridBuffers FromSimple(GridEmbeddingSimple<Symbol, Strand> &g)
-	{
-		return GridBuffers(
-			g.a_data, g.m,
-			g.b_data, g.n,
-			g.h_strands, g.m,
-			g.v_strands, g.n
-		);
-	}
-
-	template<int TileM, int TileN>
-	static GridBuffers FromDeinterleaved(GridEmbeddingDeinterleaved<Symbol, Strand, TileM, TileN> &g)
-	{
-		return GridBuffers(
-			g.a_data, g.h_desc.LenAllocated(),
-			g.b_data, g.v_desc.LenAllocated(),
-			g.h_strands, g.h_desc.LenAllocated(),
-			g.v_strands, g.v_desc.LenAllocated()
-		);
-	}
 };
 
 
-// Structure holding sycl accessors to avoid repetition
-// Doesn't know anything about in-buffer layout
-template<typename Symbol, typename Strand>
-class GridAccessors
+struct GridAccessors
 {
-public:
-	sycl::accessor<Symbol, 1, sycl::access_mode::read> a;
-	sycl::accessor<Symbol, 1, sycl::access_mode::read> b;
-	sycl::accessor<Strand, 1, sycl::access_mode::read_write> h_strands;
-	sycl::accessor<Strand, 1, sycl::access_mode::read_write> v_strands;
+	sycl::accessor<Word, 1, sycl::access_mode::read> a;
+	sycl::accessor<Word, 1, sycl::access_mode::read> b;
 
-	GridAccessors(GridBuffers<Symbol, Strand> &g, sycl::handler &cgh)
-		: a(g.a, cgh)
-		, b(g.b, cgh)
-		, h_strands(g.h_strands, cgh)
-		, v_strands(g.v_strands, cgh)
+	sycl::accessor<Word, 1, sycl::access_mode::read_write> h_strands;
+	sycl::accessor<Word, 1, sycl::access_mode::read_write> v_strands;
+
+	GridAccessors(GridBuffers &buf, sycl::handler &cgh)
+		: a(buf.a, cgh)
+		, b(buf.b, cgh)
+		, h_strands(buf.h_strands, cgh)
+		, v_strands(buf.v_strands, cgh)
 	{
 	}
 };
 
 
+// Utility functions
 
-GridEmbeddingSimple<int, int>
-make_embedding(const LcsInput &input)
+GridEmbeddingTiled make_grid_embedding_tiled(LcsProblemContext &ctx, int tile_m, int block_m, int tile_n, int block_n)
 {
-	return GridEmbeddingSimple<int, int>(
-		input.a_data, input.a_size, input.b_data, input.b_size);
+	return GridEmbeddingTiled(ctx.a_given, ctx.a_length, tile_m, block_m,
+							  ctx.b_given, ctx.b_length, tile_n, block_n);
+}
+
+GridBuffers make_buffers(GridEmbeddingTiled &g)
+{
+	return GridBuffers(g.a, g.shape.h_desc.LenAllocated(),
+					   g.b, g.shape.v_desc.LenAllocated(),
+					   g.h_strands, g.shape.h_desc.LenAllocated(),
+					   g.v_strands, g.shape.v_desc.LenAllocated());
+}
+
+GridAccessors make_accessors(GridBuffers &buf, sycl::handler &cgh)
+{
+	return GridAccessors(buf, cgh);
 }
 
 
-template<int TILE_M, int TILE_N>
-GridEmbeddingDeinterleaved<int, int, TILE_M, TILE_N> 
-make_embedding_deinterleaved(const LcsInput &input)
+// Rectangular subregion in the grid
+struct BlockShape
 {
-	return GridEmbeddingDeinterleaved<int, int, TILE_M, TILE_N>(
-		input.a_data, input.a_size,
-		input.b_data, input.b_size);
+	int i0;
+	int isize;
+	int j0;
+	int jsize;
+};
+
+
+
+struct StripeBlocks
+{
+	int jsize_total;
+	int i0;
+	int isize;
+	int i_stride;
+	int block_count;
+
+	BlockShape block_at(int idx) const
+	{
+		BlockShape result = {};
+		result.i0 = i0 + i_stride * idx;
+		result.isize = isize;
+		result.j0 = 0;
+		result.jsize = jsize_total;
+		return result;
+	}
+};
+
+StripeBlocks divide_tiled_into_stripes(GridShapeTiled &shape, int stripe_height)
+{
+	int m = shape.h_desc.tile_count;
+	int n = shape.v_desc.tile_count;
+
+	StripeBlocks result = {};
+	result.i0 = m - stripe_height;
+	result.isize = stripe_height;
+	result.i_stride = -stripe_height;
+	result.jsize_total = n;
+	result.block_count = m / stripe_height;
+
+	return result;
 }
 
-GridBuffers<int, int>
-make_buffers(GridEmbeddingSimple<int, int> &grid)
+struct Diagonal
 {
-	return GridBuffers<int, int>::FromSimple(grid);
-}
-
-template<int TILE_M, int TILE_N>
-GridBuffers<int, int> 
-make_buffers(GridEmbeddingDeinterleaved<int, int, TILE_M, TILE_N> &grid)
-{
-	return GridBuffers<int, int>::FromDeinterleaved(grid);
-}
-
-GridAccessors<int, int> make_accessors(GridBuffers<int, int> &buf, sycl::handler &cgh)
-{
-	return GridAccessors<int, int>(buf, cgh);
-}
-
-
-struct AntdiagonalDescriptor
-{
-	int diag_len;
 	int i_first;
 	int j_first;
+	int len;
 };
 
-
-AntdiagonalDescriptor antidiag_at(int diag_idx, int m, int n)
+struct RectangleBlocks
 {
-	AntdiagonalDescriptor d = {};
-	d.i_first = diag_idx < m ? (m - diag_idx - 1) : 0;
-	d.j_first = diag_idx < m ? 0 : (diag_idx - m + 1);
-	d.diag_len = Min(m - d.i_first, n - d.j_first);
-	return d;
+	int block_count_m;
+	int block_count_n;
+
+	BlockShape block0;
+	int i_stride;
+	int j_stride;
+
+	int pass_count() const
+	{
+		return block_count_m + block_count_n - 1;
+	}
+
+	Diagonal diagonal_at(int pass_idx) const
+	{
+		Diagonal d = {};
+		int m = block_count_m;
+		int n = block_count_n;
+		d.i_first = pass_idx < m ? (m - pass_idx - 1) : 0;
+		d.j_first = pass_idx < m ? 0 : (pass_idx - m + 1);
+		d.len = Min(m - d.i_first, n - d.j_first);
+		return d;
+	}
+
+	BlockShape block_at(Diagonal d, int step) const
+	{
+		int block_i = d.i_first + step;
+		int block_j = d.j_first + step;
+
+		BlockShape result = block0;
+		result.i0 += i_stride * block_i;
+		result.j0 += j_stride * block_j;
+
+		return result;
+	}
+};
+
+RectangleBlocks divide_tiled_into_blocks(GridShapeTiled &shape, int block_m, int block_n)
+{
+	int m = shape.h_desc.tile_count;
+	int n = shape.v_desc.tile_count;
+
+	RectangleBlocks result = {};
+	result.block_count_m = m / block_m;
+	result.block_count_n = n / block_n;
+
+	BlockShape block0 = {};
+	block0.i0 = 0;
+	block0.isize = block_m;
+
+	block0.j0 = 0;
+	block0.jsize = block_n;
+
+	result.i_stride = block_m;
+	result.j_stride = block_n;
+
+	result.block0 = block0;
+	return result;
 }
 
-
-void copy_strands(LcsContext &ctx_dst, GridEmbeddingSimple<int, int> &grid_src)
+void prepare_symbols(LcsProblemContext &ctx)
 {
-	ctx_dst.h_strands_size = grid_src.m;
-	ctx_dst.v_strands_size = grid_src.n;
-	ctx_dst.h_strands = new int[grid_src.m];
-	ctx_dst.v_strands = new int[grid_src.n];
+	int m = ctx.a_length;
+	int n = ctx.b_length;
 
-	for (int i = 0; i < grid_src.m; ++i)
-	{
-		ctx_dst.h_strands[i] = grid_src.h_strands[i];
-	}
-	for (int j = 0; j < grid_src.n; ++j)
-	{
-		ctx_dst.v_strands[j] = grid_src.v_strands[j];
-	}
-}
-
-template<int TILE_M, int TILE_N>
-void 
-copy_strands_deinterleaved(LcsContext &ctx_dst, GridEmbeddingDeinterleaved<int, int, TILE_M, TILE_N> &grid_src)
-{
-	int m = grid_src.h_desc.Len();
-	int n = grid_src.v_desc.Len();
-	ctx_dst.h_strands_size = m;
-	ctx_dst.v_strands_size = n;
-	ctx_dst.h_strands = new int[m];
-	ctx_dst.v_strands = new int[n];
+	ctx.a_prepared = new Word[m];
+	ctx.b_prepared = new Word[n];
 
 	for (int i = 0; i < m; ++i)
 	{
-		int i_di = grid_src.h_desc.Deinterleave(i);
-		ctx_dst.h_strands[i] = grid_src.h_strands[i_di];
+		ctx.a_prepared[i] = ctx.a_given[m - i - 1];
 	}
 	for (int j = 0; j < n; ++j)
 	{
-		int j_di = grid_src.v_desc.Deinterleave(j);
-		ctx_dst.v_strands[j] = grid_src.v_strands[j_di];
+		ctx.b_prepared[j] = ctx.b_given[j];
 	}
 }
 
-
-void make_symbols(int **a_dst, int **b_dst, const LcsInput &input)
+void copy_strands_and_fixup_tiled(LcsProblemContext &ctx, GridEmbeddingTiled &grid)
 {
-	int *a = new int[input.a_size];
-	int *b = new int[input.b_size];
-	for (int i = 0; i < input.a_size; ++i)
+	int m_given = grid.shape.h_desc.len_given;
+	int n_given = grid.shape.v_desc.len_given;
+
+	ctx.h_strands_length = m_given;
+	ctx.h_strands = new Word[m_given];
+
+	ctx.v_strands_length = n_given;
+	ctx.v_strands = new Word[n_given];
+
+	prepare_symbols(ctx);
+	int i_offset = grid.shape.remainder_m;
+
+	int m_done = grid.shape.h_desc.LenLinear();
+	int n_done = grid.shape.v_desc.LenLinear();
+
+	for (int i = 0; i < i_offset; ++i)
 	{
-		a[i] = input.a_data[input.a_size - i - 1];
+		ctx.h_strands[i] = i;
 	}
-	for (int j = 0; j < input.b_size; ++j)
+
+	for (int i = 0; i < m_done; ++i)
 	{
-		b[j] = input.b_data[j];
+		int i_di = grid.shape.h_desc.Deinterleave(i);
+		ctx.h_strands[i + i_offset] = grid.h_strands[i_di];
 	}
 
-	*a_dst = a;
-	*b_dst = b;
-}
-
-void make_strands(int **h_strands_dst, int m, int **v_strands_dst, int n)
-{
-	int *h_strands = new int[m];
-	int *v_strands = new int[n];
-	for (int i = 0; i < m; ++i)
+	for (int j = 0; j < n_done; ++j)
 	{
-		h_strands[i] = i;
+		int j_di = grid.shape.v_desc.Deinterleave(j);
+		ctx.v_strands[j] = grid.v_strands[j_di];
 	}
-	for (int j = 0; j < n; ++j)
+
+	for (int j = 0; j < grid.shape.remainder_n; ++j)
 	{
-		v_strands[j] = m + j;
+		ctx.v_strands[j + n_done] = m_given + n_done + j;
 	}
 
-	*h_strands_dst = h_strands;
-	*v_strands_dst = v_strands;
-}
+	Lcs_Semi_Fixup(ctx, 0, grid.shape.remainder_m, 0, n_done);
+	Lcs_Semi_Fixup(ctx, 0, m_given, n_done, grid.shape.remainder_n);
 
-using int_Buffer = sycl::buffer<int, 1>;
-
-using int_SymbolsAccessor = sycl::accessor<int, 1, sycl::access_mode::read>;
-using int_StrandsAccessor = sycl::accessor<int, 1, sycl::access_mode::read_write>;
-
-int_Buffer make_buffer(int *data, int count)
-{
-	return int_Buffer(data, count);
-}
-
-int_SymbolsAccessor make_symbols_accessor(int_Buffer &buf, sycl::handler &cgh)
-{
-	return int_SymbolsAccessor(buf, cgh);
-}
-
-int_StrandsAccessor make_strands_accessor(int_Buffer &buf, sycl::handler &cgh)
-{
-	return int_StrandsAccessor(buf, cgh);
 }

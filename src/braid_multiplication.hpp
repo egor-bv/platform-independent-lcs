@@ -273,7 +273,6 @@ void steady_ant_seq(PermutationMatrix &p, PermutationMatrix &q,
 template<bool RowGlue>
 PermutationMatrix staggered_multiply(PermutationMatrix &p, PermutationMatrix &q, int k)
 {
-	// constexpr bool RowGlue = true;
 	constexpr int NO_POINT = -1;
 
 	auto product = PermutationMatrix(p.row_count() + q.row_count() - k);

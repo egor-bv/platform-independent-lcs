@@ -1,257 +1,251 @@
 #pragma once
 
-#include "lcs_types.hpp"
+#include "lcs_interface_interlal.hpp"
+#include "lcs_residual_fixup.hpp"
 #include "lcs_grid.hpp"
 #include "lcs_common.hpp"
+#include "sycl_utility.hpp"
 
 
-
-template<int SG_SIZE, int TILE_M, int TILE_N>
+template <int SG_SIZE, int TILE_M, int TILE_N>
 void
-Lcs_Semi_Tiled_ST(const LcsInput &input, LcsContext &ctx)
+Lcs_Semi_Tiled_ST_(LcsProblemContext &ctx)
 {
-	auto grid = make_embedding_deinterleaved<TILE_M, TILE_N>(input);
+	auto grid = make_grid_embedding_tiled(ctx, TILE_M, SG_SIZE, TILE_N, SG_SIZE * 2);
+	auto shape = grid.shape;
 
-	int region_m = grid.h_desc.RegionUsefulSize();
-	int region_n = grid.v_desc.RegionUsefulSize();
-
-	int i_stride = grid.h_desc.Stride();
-	int j_stride = grid.v_desc.Stride();
-
-	int ii_limit = grid.h_desc.IncompleteTileLimit();
-	int jj_limit = grid.v_desc.IncompleteTileLimit();
-
-	int stripe_size = SG_SIZE;
-	int complete_stripe_count = region_m / stripe_size;
-	bool has_incomplete_stripe = complete_stripe_count * stripe_size != region_m;
+	int stripe_count = shape.h_desc.tile_count / SG_SIZE;
 	{
 		auto buf = make_buffers(grid);
-
 		ctx.queue->submit([&](sycl::handler &cgh)
 		{
 			auto acc = make_accessors(buf, cgh);
-			int left_border = 0;
-			int right_border = region_n;
 
 			int local_size = SG_SIZE;
 			int global_size = SG_SIZE;
 
 			cgh.parallel_for(
 				sycl::nd_range<1>(global_size, local_size),
-				[=](sycl::nd_item<1> item)
-				[[intel::reqd_sub_group_size(SG_SIZE)]]
+				[=](sycl::nd_item<1> item) REQD_SUB_GROUP_SIZE(SG_SIZE)
 			{
 				auto sg = item.get_sub_group();
-				int sg_id = sg.get_local_linear_id();
 
-				int top_stripe = has_incomplete_stripe ? complete_stripe_count : complete_stripe_count - 1;
-				int top_border = region_m;
-
-
-
-				// Run special code path for top stripe that assumes both incomplete stripe
-				// and incomplete tile
+				for (int stripe_idx = 0; stripe_idx < stripe_count; ++stripe_idx)
 				{
-					TiledCache<TILE_M, TILE_N> cache_incomplete;
+					int i0 = (stripe_count - stripe_idx - 1) * SG_SIZE;
 
-					// Special case for incomplete stripe: some entries in cache are masked out
-					auto update_cell_tile_limit_incomplete = [&](int i_low, int j_low)
-					{
-						int ii_limit_here = i_low == region_m - 1 ? ii_limit : TILE_M;
-						int jj_limit_here = j_low == region_n - 1 ? jj_limit : TILE_N;
+					BlockShape block = {};
+					block.i0 = i0;
+					block.j0 = 0;
+					block.jsize = shape.v_desc.tile_count;
 
-						update_cell_tile_limit_semilocal(cache_incomplete,
-														 acc.a, acc.b, acc.h_strands, acc.v_strands,
-														 i_stride, j_stride, i_low, j_low,
-														 ii_limit_here, jj_limit_here);
-					};
-
-					auto within_bounds = [&](int i, int j)
-					{
-						return i < top_border;
-					};
-
-
-					int i0 = top_stripe * SG_SIZE;
-					int i = i0 + sg_id;
-
-					int ii_limit_here = i == region_m - 1 ? ii_limit : TILE_M;
-
-					load_cache(cache_incomplete, acc.a, acc.h_strands, i, i_stride, ii_limit_here);
-
-					stripe_iterate_with_predicate<SG_SIZE>(update_cell_tile_limit_incomplete, within_bounds,
-														   sg, i0, left_border, right_border);
-
-					store_cache(cache_incomplete, acc.h_strands, i, i_stride, ii_limit_here);
-					sg.barrier();
+					update_block_tiled_semilocal_with_cache<SG_SIZE, TILE_M, TILE_N>(sg, acc, shape, block);
 				}
 
-				for (int stripe = top_stripe - 1; stripe >= 0; --stripe)
-				{
-					TiledCache<TILE_M, TILE_N> cache_complete;
-					auto update_cell_tile_complete = [&](int i_low, int j_low)
-					{
-						update_cell_tile_semilocal(cache_complete,
-												   acc.a, acc.b, acc.h_strands, acc.v_strands,
-												   i_stride, j_stride, i_low, j_low);
-					};
-
-					auto update_cell_tile_limit_complete = [&](int i_low, int j_low)
-					{
-						int ii_limit_here = i_low == region_m - 1 ? ii_limit : TILE_M;
-						int jj_limit_here = j_low == region_n - 1 ? jj_limit : TILE_N;
-
-						update_cell_tile_limit_semilocal(cache_complete,
-														 acc.a, acc.b, acc.h_strands, acc.v_strands,
-														 i_stride, j_stride, i_low, j_low,
-														 ii_limit_here, jj_limit_here);
-					};
-
-					int i0 = stripe * SG_SIZE;
-					int i = i0 + sg_id;
-					load_cache(cache_complete, acc.a, acc.h_strands, i, i_stride, TILE_M);
-					stripe_iterate<SG_SIZE>(update_cell_tile_complete, update_cell_tile_limit_complete,
-											sg, i0, left_border, right_border);
-					store_cache(cache_complete, acc.h_strands, i, i_stride, TILE_M);
-
-					sg.barrier();
-				}
 
 			}); // end parallel_for
 		}); // end submit
-	} // end buffer lifetime
+	} // end buffers lifetime
 
-	copy_strands_deinterleaved(ctx, grid);
+	copy_strands_and_fixup_tiled(ctx, grid);
+	// fixup_residuals(ctx);
+
 }
 
-
-template<int SG_SIZE, int TILE_M, int TILE_N, int SECTIONS>
-void Lcs_Semi_Tiled_MT(const LcsInput &input, LcsContext &ctx)
+template <int SG_SIZE, int TILE_M, int TILE_N>
+void
+Lcs_Semi_Tiled_ST(LcsProblemContext &ctx)
 {
-	auto grid = make_embedding_deinterleaved<TILE_M, TILE_N>(input);
+	auto grid = make_grid_embedding_tiled(ctx, TILE_M, SG_SIZE, TILE_N, SG_SIZE*2);
+	auto shape = grid.shape;
+	auto stripes = divide_tiled_into_stripes(shape, SG_SIZE);
 
-	int region_m = grid.h_desc.RegionUsefulSize();
-	int region_n = grid.v_desc.RegionUsefulSize();
+	{
+		auto buf = make_buffers(grid);
+		ctx.queue->submit([&](sycl::handler &cgh)
+		{
+			auto acc = make_accessors(buf, cgh);
 
-	int i_stride = grid.h_desc.Stride();
-	int j_stride = grid.v_desc.Stride();
+			int local_size = SG_SIZE;
+			int global_size = SG_SIZE;
 
-	int ii_limit = grid.h_desc.IncompleteTileLimit();
-	int jj_limit = grid.v_desc.IncompleteTileLimit();
+			cgh.parallel_for(
+				sycl::nd_range<1>(global_size, local_size),
+				[=](sycl::nd_item<1> item) REQD_SUB_GROUP_SIZE(SG_SIZE)
+			{
+				auto sg = item.get_sub_group();
 
-	int stripe_size = SG_SIZE;
-	int stripe_count = CeilDiv(region_m, stripe_size);
-	int complete_stripe_count = region_m / stripe_size;
-	int num_blocks_m = stripe_count;
+				for (int block_idx = 0; block_idx < stripes.block_count; ++block_idx)
+				{
+					auto block = stripes.block_at(block_idx);
 
-	int block_width = CeilDiv(region_n, SECTIONS);
-	int num_blocks_n = CeilDiv(region_n, block_width);
+					update_block_tiled_semilocal_with_cache<SG_SIZE, TILE_M, TILE_N>(sg, acc, shape, block);
+				}
 
-	int pass_count = num_blocks_m + num_blocks_n - 1;
+
+			}); // end parallel_for
+		}); // end submit
+	} // end buffers lifetime
+
+	copy_strands_and_fixup_tiled(ctx, grid);
+	// fixup_residuals(ctx);
+
+}
+
+template <int SG_SIZE, int TILE_M, int TILE_N, int SECTIONS>
+void
+Lcs_Semi_Tiled_MT(LcsProblemContext &ctx)
+{
+	auto grid = make_grid_embedding_tiled(ctx, TILE_M, SG_SIZE, TILE_N, SG_SIZE * SECTIONS);
+	auto shape = grid.shape;
+
+	int block_width = grid.shape.v_desc.tile_count / SECTIONS;
+	auto blocks = divide_tiled_into_blocks(shape, SG_SIZE, block_width);
+
 	{
 		auto buf = make_buffers(grid);
 
-		for (int pass = 0; pass < pass_count; ++pass)
+		for (int pass_idx = 0; pass_idx < blocks.pass_count(); ++pass_idx)
 		{
 			ctx.queue->submit([&](sycl::handler &cgh)
 			{
 				auto acc = make_accessors(buf, cgh);
 
-				// compute shape of the pass...
-				auto block_diag = antidiag_at(pass, num_blocks_m, num_blocks_n);
+				auto diag = blocks.diagonal_at(pass_idx);
 
 				int local_size = SG_SIZE;
-				int global_size = SG_SIZE * block_diag.diag_len;
+				int global_size = local_size * diag.len;
 
 				cgh.parallel_for(
 					sycl::nd_range<1>(global_size, local_size),
-					[=](sycl::nd_item<1> item)
-					[[intel::reqd_sub_group_size(SG_SIZE)]]
+					[=](sycl::nd_item<1> item) REQD_SUB_GROUP_SIZE(SG_SIZE)
 				{
 					auto sg = item.get_sub_group();
-					int sg_id = sg.get_local_linear_id();
 					int group_id = item.get_group_linear_id();
 
-					int i0 = (block_diag.i_first + group_id) * SG_SIZE;
-					int left_border = (block_diag.j_first + group_id) * block_width;
-					int right_border = Min(left_border + block_width, region_n);
-
-					int left_border_original = left_border;
-					int right_border_original = right_border;
-
-					int i = i0 + sg_id;
-
-					bool incomplete_stripe =
-						i0 == complete_stripe_count * SG_SIZE
-						&& complete_stripe_count < stripe_count;
-
-					bool incomplete_tile =
-						((i0 == (stripe_count - 1) * SG_SIZE) && (ii_limit != TILE_M))
-						|| (right_border >= region_n && jj_limit != TILE_N);
-
-					bool incomplete = incomplete_stripe || incomplete_tile;
-
-					if (!incomplete_stripe)
-					{
-						if (right_border >= region_n && jj_limit != TILE_N)
-						{
-							right_border = region_n - 1;
-						}
-
-						TiledCache<TILE_M, TILE_N> cache;
-						load_cache(cache, acc.a, acc.h_strands, i, i_stride, TILE_M);
-
-						auto process_cell_tile = [&](int i_low, int j_low)
-						{
-							update_cell_tile_semilocal(cache, acc.a, acc.b, acc.h_strands, acc.v_strands,
-													   i_stride, j_stride, i_low, j_low);
-						};
-
-						update_stripe<SG_SIZE>(process_cell_tile,
-											   sg, i0, left_border, right_border);
-
-
-						store_cache(cache, acc.h_strands, i, i_stride, TILE_M);
-					}
-
-					if (incomplete_stripe || right_border < right_border_original)
-					{
-
-						if (right_border < right_border_original)
-						{
-							left_border = right_border;
-							right_border = right_border_original;
-						}
-
-						int ii_limit_here = i == region_m - 1 ? ii_limit : TILE_M;
-
-						TiledCache<TILE_M, TILE_N> cache;
-						load_cache(cache, acc.a, acc.h_strands, i, i_stride, ii_limit_here);
-
-						auto process_cell_tile = [&](int i_low, int j_low)
-						{
-							int jj_limit_here = j_low == region_n - 1 ? jj_limit : TILE_N;
-							update_cell_tile_limit_semilocal(cache, acc.a, acc.b, acc.h_strands, acc.v_strands,
-															 i_stride, j_stride, i_low, j_low,
-															 ii_limit_here, jj_limit_here);
-						};
-						auto within_bounds = [&](int i, int j)
-						{
-							return i < region_m;
-						};
-
-						update_stripe_with_predicate<SG_SIZE>(process_cell_tile, within_bounds, sg, i0,
-															  left_border, right_border);
-
-						store_cache(cache, acc.h_strands, i, i_stride, ii_limit_here);
-					}
-
+					auto block = blocks.block_at(diag, group_id);
+					update_block_tiled_semilocal_with_cache<SG_SIZE, TILE_M, TILE_N>(sg, acc, shape, block);
 
 				}); // end parallel_for
 			}); // end submit
-		} // end for
+		}// end for
 	} // end buffers lifetime
 
-	copy_strands_deinterleaved(ctx, grid);
+	copy_strands_and_fixup_tiled(ctx, grid);
+	// fixup_residuals(ctx);
+
 }
 
+
+
+template <int SG_SIZE, int TILE_M, int TILE_N, int SECTIONS>
+void
+Lcs_Semi_Tiled_MT_SLM(LcsProblemContext &ctx)
+{
+	auto grid = make_grid_embedding_tiled(ctx, TILE_M, SG_SIZE, TILE_N, SG_SIZE * SECTIONS);
+	auto shape = grid.shape;
+
+	int slm_max_bytes = 32 * 1024;
+	int slm_slot_size = SG_SIZE * TILE_N;
+	int slm_bytes_per_slot = slm_slot_size * sizeof(Word) * 2;
+
+	int block_width = grid.shape.v_desc.tile_count / SECTIONS;
+	auto blocks = divide_tiled_into_blocks(shape, SG_SIZE, block_width);
+
+	int slm_slot_count = block_width / SG_SIZE;
+	int slm_size = slm_slot_size * slm_slot_count;
+
+	printf("slm allocation: %.1fkB\n", (double)slm_slot_count * slm_bytes_per_slot / 1024.0);
+
+	{
+		auto buf = make_buffers(grid);
+
+		for (int pass_idx = 0; pass_idx < blocks.pass_count(); ++pass_idx)
+		{
+			ctx.queue->submit([&](sycl::handler &cgh)
+			{
+				auto acc = make_accessors(buf, cgh);
+
+				auto b_local = sycl::accessor<Word, 1, sycl::access_mode::read_write, sycl::access::target::local>(slm_size, cgh);
+				auto v_strands_local = sycl::accessor<Word, 1, sycl::access_mode::read_write, sycl::access::target::local>(slm_size, cgh);
+
+
+				auto diag = blocks.diagonal_at(pass_idx);
+
+				int local_size = SG_SIZE;
+				int global_size = local_size * diag.len;
+
+				cgh.parallel_for(
+					sycl::nd_range<1>(global_size, local_size),
+					[=](sycl::nd_item<1> item) REQD_SUB_GROUP_SIZE(SG_SIZE)
+				{
+					auto sg = item.get_sub_group();
+					int group_id = item.get_group_linear_id();
+
+					auto block = blocks.block_at(diag, group_id);
+					update_block_tiled_semilocal_with_slm_at_once<SG_SIZE, TILE_M, TILE_N>(sg, acc, slm_slot_count, b_local, v_strands_local, shape, block);
+
+				}); // end parallel_for
+			}); // end submit
+		}// end for
+	} // end buffers lifetime
+
+	copy_strands_and_fixup_tiled(ctx, grid);
+	// fixup_residuals(ctx);
+
+}
+
+template <int SG_SIZE, int TILE_M, int TILE_N>
+void
+Lcs_Semi_Tiled_MT_SLM_incremental(LcsProblemContext &ctx)
+{
+	auto grid = make_grid_embedding_tiled(ctx, TILE_M, SG_SIZE, TILE_N, SG_SIZE * TILE_N * 8);
+	auto shape = grid.shape;
+
+	int block_width = grid.shape.v_desc.tile_count / 4;
+	auto blocks = divide_tiled_into_blocks(shape, SG_SIZE, block_width);
+
+
+	int slm_slot_size = SG_SIZE * TILE_N;
+	int slm_slot_count = 8;
+	int slm_size = slm_slot_size * slm_slot_count;
+
+
+	{
+		auto buf = make_buffers(grid);
+
+		for (int pass_idx = 0; pass_idx < blocks.pass_count(); ++pass_idx)
+		{
+			ctx.queue->submit([&](sycl::handler &cgh)
+			{
+				auto acc = make_accessors(buf, cgh);
+
+				auto b_local = sycl::accessor<Word, 1, sycl::access_mode::read_write, sycl::access::target::local>(slm_size, cgh);
+				auto v_strands_local = sycl::accessor<Word, 1, sycl::access_mode::read_write, sycl::access::target::local>(slm_size, cgh);
+
+
+				auto diag = blocks.diagonal_at(pass_idx);
+
+				int local_size = SG_SIZE;
+				int global_size = local_size * diag.len;
+
+				cgh.parallel_for(
+					sycl::nd_range<1>(global_size, local_size),
+					[=](sycl::nd_item<1> item) REQD_SUB_GROUP_SIZE(SG_SIZE)
+				{
+					auto sg = item.get_sub_group();
+					int group_id = item.get_group_linear_id();
+
+					auto block = blocks.block_at(diag, group_id);
+					// K_PRINTF("slm_size: %d\n", slm_size);
+					update_block_tiled_semilocal_with_slm<SG_SIZE, TILE_M, TILE_N>(sg, acc, slm_slot_count, b_local, v_strands_local, shape, block);
+
+				}); // end parallel_for
+			}); // end submit
+		}// end for
+	} // end buffers lifetime
+
+	copy_strands_and_fixup_tiled(ctx, grid);
+	// fixup_residuals(ctx);
+
+}

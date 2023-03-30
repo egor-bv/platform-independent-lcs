@@ -1,4 +1,4 @@
-#include "test_script_parser.hpp"
+#include "test_setup.hpp"
 #include "test_utility.hpp"
 
 #include "lcs_types.hpp"
@@ -27,7 +27,7 @@ int main(int argc, char **argv)
 	int counter = 0;
 	for (auto cmd : commands)
 	{
-		printf("%d/%d\n", counter, commands.size());
+		// printf("%d/%d\n", counter, commands.size());
 		++counter;
 
 		// Prepare test case options
@@ -50,35 +50,44 @@ int main(int argc, char **argv)
 
 		for (int iter = 0; iter < opts.iterations; ++iter)
 		{
-			// Start timer
-			TimeInterval timer;
+			try
+			{
+				// Start timer
+				TimeInterval timer;
 
-			// Produce permutation matrix
-			auto perm = impl(input);
+				// Produce permutation matrix
+				auto perm = impl(input);
 
-			// Stop timer
-			double elapsed_ms = timer.Elapsed() * 1000.0;
-			int64_t num_cells_total = (int64_t)opts.size_a * (int64_t)opts.size_b;
-			double speed_cells_per_us = (double)num_cells_total / (elapsed_ms * 1000.0);
+				// Stop timer
+				double elapsed_ms = timer.Elapsed() * 1000.0;
+				int64_t num_cells_total = (int64_t)opts.size_a * (int64_t)opts.size_b;
+				double speed_cells_per_us = (double)num_cells_total / (elapsed_ms * 1000.0);
 
-			// Compute hash
-			int64_t hash = perm.hash();
-			// Prepare test case output struct
-			// Write output entry for test case
-			//printf("%s [%dx%d] speed: %f cell/us, hash: #%lld\n", opts.algorithm.c_str(),
-			//	   opts.size_a, opts.size_b, speed_cells_per_us, hash);
+				// Compute hash
+				int64_t hash = perm.hash();
+				// Prepare test case output struct
+				// Write output entry for test case
+				//printf("%s [%dx%d] speed: %f cell/us, hash: #%lld\n", opts.algorithm.c_str(),
+				//	   opts.size_a, opts.size_b, speed_cells_per_us, hash);
 
-			TestCaseResult res = {};
-			res.device = impl.queue->get_info<sycl::info::queue::device>().get_info<sycl::info::device::name>();
-			// printf("device: %s\n", res.device.c_str());
-			res.algorithm = opts.algorithm;
-			res.device_type = opts.device_type;
-			res.size_a = opts.size_a;
-			res.size_b = opts.size_b;
-			res.elapsed_ms = elapsed_ms;
-			res.hash = hash;
+				TestCaseResult res = {};
+				res.device = impl.queue->get_info<sycl::info::queue::device>().get_info<sycl::info::device::name>();
+				// printf("device: %s\n", res.device.c_str());
+				res.algorithm = opts.algorithm;
+				res.device_type = opts.device_type;
+				res.size_a = opts.size_a;
+				res.size_b = opts.size_b;
+				res.elapsed_ms = elapsed_ms;
+				res.hash = hash;
 
-			out.WriteLine(opts, res);
+				out.WriteLine(opts, res);
+			} 
+			catch (sycl::exception e)
+			{
+				printf("Sycl exception: \n");
+				printf(">>> %s\n", e.what());
+				printf("---------------\n");
+			}
 		}
 		out.Flush();
 	}
