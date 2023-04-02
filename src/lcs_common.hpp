@@ -7,7 +7,8 @@
 template<typename Symbols, typename Strands>
 inline void
 update_cell_semilocal(Symbols a, Symbols b,
-					  Strands h_strands, Strands v_strands)
+					  Strands h_strands, Strands v_strands,
+					  int i, int j)
 {
 	auto a_symbol = a[i];
 	auto b_symbol = b[j];
