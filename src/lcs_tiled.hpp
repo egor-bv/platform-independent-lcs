@@ -1,6 +1,6 @@
 #pragma once
 
-#include "lcs_interface_interlal.hpp"
+#include "lcs_interface_internal.hpp"
 #include "lcs_residual_fixup.hpp"
 #include "lcs_grid.hpp"
 #include "lcs_common.hpp"

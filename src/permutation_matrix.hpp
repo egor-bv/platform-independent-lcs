@@ -16,7 +16,7 @@ public:
 	// Empty, also used as an error case
 	PermutationMatrix() = default;
 
-	PermutationMatrix(PermutationMatrix &&other)
+	PermutationMatrix(PermutationMatrix &&other) noexcept
 	{
 		if (this->owns_data)
 		{
@@ -32,7 +32,7 @@ public:
 		this->col_to_row = other.col_to_row;
 	}
 
-	PermutationMatrix &operator=(PermutationMatrix &&other)
+	PermutationMatrix &operator=(PermutationMatrix &&other) noexcept
 	{
 		if (this->owns_data)
 		{

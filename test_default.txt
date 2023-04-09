@@ -1,2 +1,2 @@
-algorithm=mt device_type=cpu size_a=40961 size_b=40963 seed_a=999 seed_b=999 iterations=6
-algorithm=slm device_type=cpu size_a=40961 size_b=40963 seed_a=999 seed_b=999 iterations=6
+algorithm=ref  device_type=fpga_emulator size_a=7330 size_b=9944 seed_a=888 seed_b=999 iterations=1
+algorithm=fpga device_type=fpga_emulator size_a=7330 size_b=9944 seed_a=888 seed_b=999 iterations=6

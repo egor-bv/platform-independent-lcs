@@ -6,7 +6,7 @@
 #include <CL/sycl.hpp>
 #include <inttypes.h>
 
-#include "permutation.hpp"
+#include "permutation_matrix.hpp"
 
 
 // All sequences are to be converted to sequences of 32 bit words
@@ -24,12 +24,28 @@ struct Word
 	Word() : value(0x0f0f0f0f) {}
 	Word(int x) : value(x) {}
 
-	bool operator==(const Word &other) const { return value == other.value; }
-	bool operator>(const Word &other) const { return value > other.value; }
+	bool operator==(const Word &other) const 
+	{
+		return value == other.value; 
+	}
+	bool operator>(const Word &other) const 
+	{ 
+		return value > other.value; 
+	}
 };
 #else
 using Word = uint32_t;
 #endif
+
+
+
+
+// Additional parameters for different variants
+struct RuntimeParameters
+{
+	int num_sections;
+};
+
 
 // Bundles input sequences, additional input parameters, intermediate and final results
 struct LcsProblemContext
@@ -41,6 +57,8 @@ struct LcsProblemContext
 	int b_length;
 
 	sycl::queue *queue;
+
+	RuntimeParameters params;
 
 	// Intermediate state managed by solvers
 	Word *a_prepared; // NOTE: reversed
@@ -65,6 +83,8 @@ struct LcsProblemContext
 		delete[] b_prepared;
 	}
 };
+
+
 
 
 // All LCS implementation functions should use this signature

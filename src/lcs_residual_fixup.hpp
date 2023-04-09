@@ -1,5 +1,5 @@
 #pragma once
-#include "lcs_interface_interlal.hpp"
+#include "lcs_interface_internal.hpp"
 
 void Lcs_Semi_Reference2(LcsProblemContext &ctx)
 {

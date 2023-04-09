@@ -10,6 +10,9 @@
 
 using dpc_common::TimeInterval;
 
+#define PrintError(fmt, ...) fprintf(stderr, fmt, __VA_ARGS__)
+
+
 int main(int argc, char **argv)
 {
 	const char *in_filename = argc >= 2 ? argv[1] : "test_default.txt";
@@ -27,7 +30,6 @@ int main(int argc, char **argv)
 	int counter = 0;
 	for (auto cmd : commands)
 	{
-		// printf("%d/%d\n", counter, commands.size());
 		++counter;
 
 		// Prepare test case options
@@ -44,7 +46,7 @@ int main(int argc, char **argv)
 		auto impl = reg.Get(opts.algorithm, opts.device_type);
 		if (!impl.ok)
 		{
-			printf("ERROR: Unable to find algorihm '%s'\n", opts.algorithm.c_str());
+			PrintError("Error: Unable to find algorihm '%s'\n", opts.algorithm.c_str());
 			continue;
 		}
 
@@ -63,16 +65,12 @@ int main(int argc, char **argv)
 				int64_t num_cells_total = (int64_t)opts.size_a * (int64_t)opts.size_b;
 				double speed_cells_per_us = (double)num_cells_total / (elapsed_ms * 1000.0);
 
-				// Compute hash
 				int64_t hash = perm.hash();
-				// Prepare test case output struct
-				// Write output entry for test case
-				//printf("%s [%dx%d] speed: %f cell/us, hash: #%lld\n", opts.algorithm.c_str(),
-				//	   opts.size_a, opts.size_b, speed_cells_per_us, hash);
 
 				TestCaseResult res = {};
 				res.device = impl.queue->get_info<sycl::info::queue::device>().get_info<sycl::info::device::name>();
-				// printf("device: %s\n", res.device.c_str());
+
+
 				res.algorithm = opts.algorithm;
 				res.device_type = opts.device_type;
 				res.size_a = opts.size_a;
@@ -84,9 +82,15 @@ int main(int argc, char **argv)
 			} 
 			catch (sycl::exception e)
 			{
-				printf("Sycl exception: \n");
-				printf(">>> %s\n", e.what());
-				printf("---------------\n");
+				PrintError("Sycl exception: \n");
+				PrintError(">>> %s\n", e.what());
+				PrintError("---------------\n");
+			}
+			catch (std::exception e)
+			{
+				PrintError("exception: \n");
+				PrintError(">>> %s\n", e.what());
+				PrintError("---------------\n");
 			}
 		}
 		out.Flush();

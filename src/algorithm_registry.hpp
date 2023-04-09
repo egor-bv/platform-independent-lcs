@@ -1,7 +1,7 @@
 #pragma once
 
 #include "lcs_types.hpp"
-#include "lcs_interface_interlal.hpp"
+#include "lcs_interface_internal.hpp"
 
 #include <vector>
 #include <map>

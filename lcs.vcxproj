@@ -99,7 +99,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <SYCLWarningLevel>Level3</SYCLWarningLevel>
+      <SYCLWarningLevel>EnablesWarningsAndErrors</SYCLWarningLevel>
       <AdditionalIncludeDirectories>$(ONEAPI_ROOT)dev-utilities\latest\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
@@ -136,7 +136,7 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <SYCLWarningLevel>Level3</SYCLWarningLevel>
+      <SYCLWarningLevel>EnablesWarningsAndErrors</SYCLWarningLevel>
       <AdditionalIncludeDirectories>$(ONEAPI_ROOT)\dev-utilities\latest\include</AdditionalIncludeDirectories>
       <OpenMP>None</OpenMP>
       <FSYCLDeadArgsOptimization>Default</FSYCLDeadArgsOptimization>
@@ -156,14 +156,15 @@
   <ItemGroup>
     <ClInclude Include="src\algorithm_registry.hpp" />
     <ClInclude Include="src\braid_multiplication.hpp" />
+    <ClInclude Include="src\fpga_lcs.hpp" />
     <ClInclude Include="src\lcs_common.hpp" />
     <ClInclude Include="src\lcs_grid.hpp" />
-    <ClInclude Include="src\lcs_interface_interlal.hpp" />
+    <ClInclude Include="src\lcs_interface_internal.hpp" />
     <ClInclude Include="src\lcs_reference.hpp" />
     <ClInclude Include="src\lcs_residual_fixup.hpp" />
     <ClInclude Include="src\lcs_tiled.hpp" />
     <ClInclude Include="src\lcs_types.hpp" />
-    <ClInclude Include="src\permutation.hpp" />
+    <ClInclude Include="src\permutation_matrix.hpp" />
     <ClInclude Include="src\sycl_utility.hpp" />
     <ClInclude Include="src\test_utility.hpp" />
     <ClInclude Include="src\test_setup.hpp" />

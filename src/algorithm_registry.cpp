@@ -70,9 +70,8 @@ PermutationMatrix SemiLocalLcsImpl::operator()(const LcsInput &input)
 			return PermutationMatrix::FromStrands((int *)pctx.h_strands, pctx.h_strands_length,
 												  (int *)pctx.v_strands, pctx.v_strands_length);
 		}
-		else return PermutationMatrix();
-
 	}
+	return PermutationMatrix();
 }
 
 SemiLocalLcsImpl LcsAlgorithmRegistry::Get(std::string name, std::string device_type)
@@ -81,7 +80,7 @@ SemiLocalLcsImpl LcsAlgorithmRegistry::Get(std::string name, std::string device_
 	{
 
 		auto *fn = reg[name];
-		auto *q(GetQueueForDeviceType(device_type));
+		auto *q = GetQueueForDeviceType(device_type);
 
 		auto result = SemiLocalLcsImpl{};
 		result.ok = true;
@@ -108,16 +107,19 @@ SemiLocalLcsImpl LcsAlgorithmRegistry::Get(std::string name, std::string device_
 
 
 
+
+#if FPGA_LCS_ONLY
+#include "fpga_lcs.hpp"
+
+
+#else
+
 #include "lcs_reference.hpp"
 #include "lcs_residual_fixup.hpp"
-
 #include "lcs_tiled.hpp"
 
-// #include "lcs_antidiagonal.hpp"
-// #include "lcs_stripes.hpp"
-// #include "lcs_tiled.hpp"
-// #include "lcs_hybrid.hpp"
-// #include "lcs_general.hpp"
+
+#include "fpga_lcs.hpp"
 
 
 #define SEMI(name, fn) reg[name] = fn;
@@ -148,31 +150,18 @@ SEMI("hybrid_" #SG_SIZE "_" #DEPTH, (Lcs_Semi_Antidiagonal_Hybrid_MT<SG_SIZE, DE
 
 LcsAlgorithmRegistry::LcsAlgorithmRegistry()
 {
-	// Always include reference implementation
-	SEMI("ref", (Lcs_Semi_Reference));
-	SEMI2("ref2", (Lcs_Semi_Reference2));
-	SEMI2("tiled", (Lcs_Semi_Tiled_ST<16, 3, 3>));
-	SEMI2("mt", (Lcs_Semi_Tiled_MT<16, 5, 6, 16>));
-	SEMI2("slm", (Lcs_Semi_Tiled_MT_SLM<16, 5, 6, 16>));
-	// SEMI("aaa", (Lcs_Semi_Tiled_MT<8, 4, 4, 16>));
-	// SEMI("slm", (Lcs_Semi_Tiled_SLM_MT<8, 4, 4, 16>));
+	SEMI2("ref", Lcs_Semi_Reference2);
+	SEMI2("fpga", Lcs_Semi_Fpga);
 
 	#if LCS_USE_DEFAULT_VARIANTS
-	GENERAL(8, 4, 6, 2, 8);
-	TILED_ST(8, 4, 6);
-	TILED_MT(8, 4, 6, 8);
-	HYBRID(8, 3);
-
-	GENERAL_NAMED("general", 8, 3, 6, 2, 8);
-	TILED_ST_NAMED("tiled_st", 8, 4, 6);
-	TILED_MT_NAMED("tiled_mt", 8, 4, 6, 8);
-	HYBRID_NAMED("hybrid", 8, 3);
+	
 	#endif
-
 	#if defined(LCS_VARIANT_LIST_INCLUDE_FILE)
 	#include LCS_VARIANT_LIST_INCLUDE_FILE
 	#endif
 }
+
+#endif
 
 LcsAlgorithmRegistry::~LcsAlgorithmRegistry()
 {

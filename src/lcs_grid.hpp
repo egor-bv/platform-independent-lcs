@@ -5,7 +5,7 @@
 
 #include <CL/sycl.hpp>
 
-#include "lcs_interface_interlal.hpp"
+#include "lcs_interface_internal.hpp"
 #include "lcs_residual_fixup.hpp"
 
 #include "utility.hpp"
@@ -21,12 +21,12 @@ struct GridShapeSimple
 	int m_aligned;
 	int n_aligned;
 
-	GridShapeSimple(int _m_given, int _n_given,
-					int m_alignment = 1, int n_alignment = 1)
+	GridShapeSimple(int _m_given, int m_alignment,
+					int _n_given, int n_alignment)
 		: m_given(_m_given)
 		, n_given(_n_given)
-		, m_aligned(AlignedToMultiple(m_given, m_alignment))
-		, n_aligned(AlignedToMultiple(n_given, n_alignment))
+		, m_aligned(m_given / m_alignment * m_alignment)
+		, n_aligned(n_given / n_alignment * n_alignment)
 	{
 	}
 };
@@ -40,12 +40,14 @@ struct GridEmbeddingSimple
 	Word *h_strands;
 	Word *v_strands;
 
-	GridEmbeddingSimple(Word *a_raw, int a_len,
-						Word *b_raw, int b_len)
-		: shape(a_len, b_len)
+	GridEmbeddingSimple(const Word *a_raw, int a_len, int a_alignment,
+						const Word *b_raw, int b_len, int b_alignment)
+		: shape(a_len, a_alignment, b_len, b_alignment)
 	{
 		int m = shape.m_aligned;
 		int n = shape.n_aligned;
+
+		int i_offset = shape.m_given - shape.m_aligned;
 
 		a = new Word[m];
 		b = new Word[n];
@@ -63,11 +65,11 @@ struct GridEmbeddingSimple
 		v_strands = new Word[n];
 		for (int i = 0; i < m; ++i)
 		{
-			h_strands[i] = i;
+			h_strands[i] = i_offset + i;
 		}
 		for (int j = 0; j < n; ++j)
 		{
-			v_strands[j] = m + j;
+			v_strands[j] = i_offset + m + j;
 		}
 
 	}
@@ -252,6 +254,13 @@ struct GridBuffers
 };
 
 
+using AccessorRO = sycl::accessor<Word, 1, sycl::access_mode::read>;
+using AccessorWO = sycl::accessor<Word, 1, sycl::access_mode::write>;
+using AccessorRW = sycl::accessor<Word, 1, sycl::access_mode::read_write>;
+using LocalAccessor = sycl::accessor<Word, 1, sycl::access_mode::discard_read_write, sycl::target::local>;
+
+
+
 struct GridAccessors
 {
 	sycl::accessor<Word, 1, sycl::access_mode::read> a;
@@ -271,6 +280,21 @@ struct GridAccessors
 
 
 // Utility functions
+
+
+GridEmbeddingSimple make_grid_embedding_simple(LcsProblemContext &ctx, int a_alignemnt, int b_alignment)
+{
+	return GridEmbeddingSimple(ctx.a_given, ctx.a_length, a_alignemnt,
+							   ctx.b_given, ctx.b_length, b_alignment);
+}
+
+GridBuffers make_buffers(GridEmbeddingSimple &g)
+{
+	return GridBuffers(g.a, g.shape.m_aligned,
+					   g.b, g.shape.n_aligned,
+					   g.h_strands, g.shape.m_aligned,
+					   g.v_strands, g.shape.n_aligned);
+}
 
 GridEmbeddingTiled make_grid_embedding_tiled(LcsProblemContext &ctx, int tile_m, int block_m, int tile_n, int block_n)
 {
@@ -464,5 +488,52 @@ void copy_strands_and_fixup_tiled(LcsProblemContext &ctx, GridEmbeddingTiled &gr
 
 	Lcs_Semi_Fixup(ctx, 0, grid.shape.remainder_m, 0, n_done);
 	Lcs_Semi_Fixup(ctx, 0, m_given, n_done, grid.shape.remainder_n);
+
+}
+
+void copy_strands_and_fixup(LcsProblemContext &ctx, GridEmbeddingSimple &grid)
+{
+	int m_given = grid.shape.m_given;
+	int n_given = grid.shape.n_given;
+
+	ctx.h_strands_length = m_given;
+	ctx.h_strands = new Word[m_given];
+
+	ctx.v_strands_length = n_given;
+	ctx.v_strands = new Word[n_given];
+
+
+	int remainder_m = grid.shape.m_given - grid.shape.m_aligned;
+	int remainder_n = grid.shape.n_given - grid.shape.n_aligned;
+
+	prepare_symbols(ctx);
+
+	int i_offset = remainder_m;
+
+	int m_done = grid.shape.m_aligned;
+	int n_done = grid.shape.n_aligned;
+
+	for (int i = 0; i < i_offset; ++i)
+	{
+		ctx.h_strands[i] = i;
+	}
+
+	for (int i = 0; i < m_done; ++i)
+	{
+		ctx.h_strands[i + i_offset] = grid.h_strands[i];
+	}
+
+	for (int j = 0; j < n_done; ++j)
+	{
+		ctx.v_strands[j] = grid.v_strands[j];
+	}
+
+	for (int j = 0; j < remainder_n; ++j)
+	{
+		ctx.v_strands[j + n_done] = m_given + n_done + j;
+	}
+
+	Lcs_Semi_Fixup(ctx, 0, remainder_m, 0, n_done);
+	Lcs_Semi_Fixup(ctx, 0, m_given, n_done, remainder_n);
 
 }

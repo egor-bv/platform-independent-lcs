@@ -4,6 +4,7 @@
 #include <map>
 #include <vector>
 
+
 struct TestCaseOptions
 {
 	std::string algorithm;
@@ -21,7 +22,6 @@ struct TestCaseOptions
 
 	int iterations;
 };
-
 
 
 struct ArgumentEntry
@@ -46,7 +46,6 @@ struct ArgumentEntry
 	}
 
 };
-
 
 bool IsWhitespace(char c)
 {
@@ -97,7 +96,7 @@ bool TryParseInt(const char *str, int *result)
 	}
 	else
 	{
-		*result = total;
+		*result = sign*total;
 		return true;
 	}
 

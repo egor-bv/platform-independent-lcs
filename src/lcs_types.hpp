@@ -4,7 +4,7 @@
 #include <inttypes.h>
 
 #include "utility.hpp"
-#include "permutation.hpp"
+#include "permutation_matrix.hpp"
 
 // Canonical type for LCS inputs -- two sequences & their sizes
 struct LcsInput
