@@ -39,6 +39,7 @@ struct GridEmbeddingSimple
 	Word *b;
 	Word *h_strands;
 	Word *v_strands;
+	Word *v_strands_out = nullptr;
 
 	GridEmbeddingSimple(const Word *a_raw, int a_len, int a_alignment,
 						const Word *b_raw, int b_len, int b_alignment)
@@ -80,6 +81,7 @@ struct GridEmbeddingSimple
 		delete[] b;
 		delete[] h_strands;
 		delete[] v_strands;
+		delete[] v_strands_out;
 	}
 };
 
@@ -254,10 +256,9 @@ struct GridBuffers
 };
 
 
-using AccessorRO = sycl::accessor<Word, 1, sycl::access_mode::read>;
-using AccessorWO = sycl::accessor<Word, 1, sycl::access_mode::write>;
-using AccessorRW = sycl::accessor<Word, 1, sycl::access_mode::read_write>;
-using LocalAccessor = sycl::accessor<Word, 1, sycl::access_mode::discard_read_write, sycl::target::local>;
+using AccessorRead = sycl::accessor<Word, 1, sycl::access_mode::read>;
+using AccessorWrite = sycl::accessor<Word, 1, sycl::access_mode::write>;
+using AccessorReadWrite = sycl::accessor<Word, 1, sycl::access_mode::read_write>;
 
 
 
@@ -503,7 +504,7 @@ void copy_strands_and_fixup(LcsProblemContext &ctx, GridEmbeddingSimple &grid)
 	ctx.v_strands = new Word[n_given];
 
 
-	int remainder_m = grid.shape.m_given - grid.shape.m_aligned;
+ 	int remainder_m = grid.shape.m_given - grid.shape.m_aligned;
 	int remainder_n = grid.shape.n_given - grid.shape.n_aligned;
 
 	prepare_symbols(ctx);
@@ -525,7 +526,14 @@ void copy_strands_and_fixup(LcsProblemContext &ctx, GridEmbeddingSimple &grid)
 
 	for (int j = 0; j < n_done; ++j)
 	{
-		ctx.v_strands[j] = grid.v_strands[j];
+		if (grid.v_strands_out) 
+		{
+			ctx.v_strands[j] = grid.v_strands_out[j];
+		}
+		else
+		{
+			ctx.v_strands[j] = grid.v_strands[j];
+		}
 	}
 
 	for (int j = 0; j < remainder_n; ++j)

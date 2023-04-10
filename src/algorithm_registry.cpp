@@ -151,8 +151,9 @@ SEMI("hybrid_" #SG_SIZE "_" #DEPTH, (Lcs_Semi_Antidiagonal_Hybrid_MT<SG_SIZE, DE
 LcsAlgorithmRegistry::LcsAlgorithmRegistry()
 {
 	SEMI2("ref", Lcs_Semi_Reference2);
-	SEMI2("fpga", Lcs_Semi_Fpga);
-
+	SEMI2("fpga0", Lcs_Semi_Fpga)
+	SEMI2("fpga", Lcs_Semi_Fpga_Pipes<4>);
+	
 	#if LCS_USE_DEFAULT_VARIANTS
 	
 	#endif

@@ -1,2 +1,7 @@
 algorithm=ref  device_type=fpga_emulator size_a=7330 size_b=9944 seed_a=888 seed_b=999 iterations=1
-algorithm=fpga device_type=fpga_emulator size_a=7330 size_b=9944 seed_a=888 seed_b=999 iterations=6
+algorithm=fpga0 device_type=fpga_emulator size_a=7330 size_b=9944 seed_a=888 seed_b=999 iterations=1
+algorithm=fpga device_type=fpga_emulator size_a=7330 size_b=9944 seed_a=888 seed_b=999 iterations=1
+algorithm=ref  device_type=fpga_emulator size_a=9771 size_b=11302 seed_a=888 seed_b=999 iterations=1
+algorithm=fpga device_type=fpga_emulator size_a=9771 size_b=11302 seed_a=888 seed_b=999 iterations=1
+algorithm=ref  device_type=fpga_emulator size_a=19771 size_b=24302 seed_a=888 seed_b=999 iterations=1
+algorithm=fpga device_type=fpga_emulator size_a=19771 size_b=24302 seed_a=888 seed_b=999 iterations=1
