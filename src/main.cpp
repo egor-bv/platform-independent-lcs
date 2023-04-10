@@ -10,7 +10,7 @@
 
 using dpc_common::TimeInterval;
 
-#define PrintError(fmt, ...) fprintf(stderr, fmt, __VA_ARGS__)
+#define PrintError(fmt, ...) fprintf(stderr, fmt, ##__VA_ARGS__)
 
 
 int main(int argc, char **argv)
