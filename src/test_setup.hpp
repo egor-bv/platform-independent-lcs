@@ -129,7 +129,7 @@ struct ArgumentList
 	void ParseWord()
 	{
 		token.first = at;
-		while (IsValueCharacter(at[0]))
+		while (at[0] != '#' && !IsWhitespace(at[0]) && !IsEol(at[0]) && at[0] != '=')
 		{
 			++at;
 		}
@@ -172,6 +172,13 @@ struct ArgumentList
 		at = line;
 		while (!IsEol(at[0]))
 		{
+			// if comment -- skip to end of line
+			if (at[0] == '#')
+			{
+				while (!IsEol(at[0]) && at[0] != '\0') ++at;
+				break;
+			}
+
 			SkipSpaces();
 			ParseWord();
 			std::string key = std::string(token.first, token.length);
@@ -182,19 +189,19 @@ struct ArgumentList
 			{
 				// OK
 				++at;
+				SkipSpaces();
+				ParseWord();
+				ArgumentEntry value = ArgumentEntry(key, std::string(token.first, token.length));
+				value.is_int = TryParseInt(value.value.c_str(), &value.as_int);
+				dict[key] = value;
 			}
 			else
 			{
-				// Not OK
+				// just skip word as meaningless
+				continue;
 			}
+
 			SkipSpaces();
-			ParseWord();
-			ArgumentEntry value = ArgumentEntry(key, std::string(token.first, token.length));
-			value.is_int = TryParseInt(value.value.c_str(), &value.as_int);
-			// Handle errors?
-			// "Typecheck" arguments and produce relevant errors?
-			SkipSpaces();
-			dict[key] = value;
 			// dict.insert(std::make_pair(key, value));
 		}
 		while (IsEol(at[0]) && at[0] != '\0')
@@ -252,13 +259,27 @@ std::vector<ArgumentList> ParseEntireScript(const char *contents)
 	for (;;)
 	{
 		ArgumentList single_line(at);
+		if (single_line.dict.size() == 0)
+		{
+			if (single_line.at[0] == '\0')
+			{
+				break;
+			}
+			else
+			{
+				continue;
+			}
+		}
 		lists.push_back(single_line);
 		at = single_line.at;
+
+		single_line.DebugPrint();
 		if (single_line.at[0] == '\0')
 		{
 			break;
 		}
 	}
+	
 	return lists;
 }
 
